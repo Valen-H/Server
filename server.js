@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const http = exports.http = require('http'),
 url = exports.url = require('./lib/url-extra'),
-fs = exports.fs = require('./lib/fs-extra'),
+fs = exports.fs = require('fs-extra'),
 error = require('./error.js'),
 readline = require('readline');
 
