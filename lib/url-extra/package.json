@@ -1,1 +1,19 @@
-
+{
+  "name": "url-extra",
+  "version": "1.0.0",
+  "description": "A url wrapper that offers more options than the builtin one.",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm install -g"
+  },
+  "repository": {
+    "type": "git",
+    "url": "none"
+  },
+  "keywords": [
+    "url",
+    "wrap"
+  ],
+  "author": "ValentinHacker",
+  "license": "ISC"
+}
