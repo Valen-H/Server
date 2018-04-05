@@ -1,0 +1,23 @@
+{
+  "name": "server",
+  "version": "1.0.2",
+  "description": "A localhost server framework with custom middlewares and templating engine.",
+  "main": "server.js",
+  "scripts": {
+    "test": "npm start",
+    "start": "node server.js --no-deprecation"
+  },
+  "repository": {
+    "type": "git",
+    "url": "none"
+  },
+  "keywords": [
+    "server",
+    "net"
+  ],
+  "author": "ValentinHacker",
+  "license": "ISC",
+  "dependencies": {
+    "fs-extra": "^5.0.0"
+  }
+}
