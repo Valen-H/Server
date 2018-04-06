@@ -26,6 +26,7 @@
   * **stop|close** -> Close server.  
   * **quit** -> Close process.  
   * **clear|clean** -> Clear console.  
+  * *Everything else gets evaluated by `eval`*  
   
 > In case of a fatal error, the `error.js` middleware, which is the only middleware outside of the respective folder, responds with the template `builtin/error.html` by replacing `&&code&&` with the error code and `&&msg&&` with the error message.  
   
