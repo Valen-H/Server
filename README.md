@@ -11,6 +11,9 @@
   * **home** -> Server main path.  
   * **index** -> Statically served directories homepage.  
   * **wares** -> Middlewares to be used, defaults to `Symbol('ALL')`.  
+  * **auth** -> Admin user:pass key.  
+  * **time** -> Default timeout for incomplete requests, redirections and other timing functions.  
+  
 ## Builtins  
   * **command.js** -> Contains commands which can be executed by respective url, like : `http://localhost:8080/close?auth=admin:root` and `http://localhost:port/?login=admin:root&from=reg`, this middleware controls a `private/Accounts` folder with registered server accounts to be controlled by `register=account:password, unregister=account:password, login=account:password, logout (affects currently loged-in account)` commands in that order.  
   * **fix.js** -> Url autocorrection utility, e.g: suppose our server has a file called `file.htm` but the user requests for `FILE.html`, the server assumes and corrects the url as long as request content has not already been served.  
