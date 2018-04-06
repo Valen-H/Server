@@ -5,16 +5,16 @@ exports.before = ['directory', 'end'];
 exports.name = 'static';
 
 exports.middleware = function middleware(req, res, msg) {
-	if (!req.satisfied.main) {
+	if (!req.satisfied.main && !req.satisfied.error) {
 		fs.stat(module.parent.exports.home + '/public' + msg.pathname, (err, stat) => {
 			if (!err && stat.isFile() && !msg.filename.startsWith('d-') && !msg.filename.startsWith('.no')) {
 				fs.createReadStream(module.parent.exports.home + '/public' + msg.pathname).pipe(res);
 				req.satisfied.main = true;
 			} else if (err || msg.filename.startsWith('d-') || msg.filename.startsWith('.no')) {
-				let err = new Error('No such file or directory.');
-				err.code = 'ENOENT';
-				req.satisfied.error = err;
-				req.emit('err', err);
+				let er = err || new Error('No such file or directory.');
+				er.code = err.code || 'ENOENT';
+				req.satisfied.error = er;
+				req.emit('err', er);
 			} else if (stat.isDirectory()) {
 				fs.readdir(module.parent.exports.home + '/public' + msg.pathname, (err, files) => {
 					var out = true;
