@@ -1,23 +1,45 @@
 const fs = module.parent.exports.fs,
 HOME = module.parent.exports.home;
 
-fs.ensureDirSync(HOME + '/private/Accounts');
-
 exports.after = [];
 exports.before = ['fix', 'directory', 'static', 'end'];
 exports.name = 'command';
 
 exports.middleware = function middleware(req, res, msg) {
-	if (msg.query.auth == (process.env.admin || process.env.npm_config_admin)) {
+	if (msg.query.auth == module.parent.exports.auth) {
 		if (/^\/close$/i.test(msg.pathname)) {
-			res.end('<h1>Server Closed.</h1>');
 			let err = new Error('Server Closed.');
-			err.code = 'ESERCLOSE';
+			err.code = 'ESERCLS';
 			req.satisfied.error = err;
 			req.emit('evn', err);
 			console.info(`Server closed at : ${new Date()}`);
 			module.parent.exports.server.close();
-			req.pass(res, msg);
+		}
+		if (/^\/eval$/i.test(msg.pathname) || msg.query.eval) {
+			try {
+				console.info(`Eval'd : ${msg.query.eval}`);
+				res.end(eval(msg.query.eval) + '');
+				req.satisfied.main = true;
+			} catch (err) {
+				req.satisfied.error = err;
+				req.emit('err', err);
+			}
+		}
+		if (/^\/restart$/i.test(msg.pathname)) {
+			let err = new Error('Server Restarting.');
+			err.code = 'ESERRST';
+			req.satisfied.event = err;
+			req.emit('evn', err);
+			console.info(`Server closed at : ${new Date()}`);
+			module.parent.exports.server.once('close', () => module.parent.exports.server.listen(module.parent.exports.port));
+			module.parent.exports.server.close();
+		}
+		if (/^\/reload$/i.test(msg.pathname)) {
+			let err = new Error('Server Reloading.');
+			err.code = 'ESERRLD';
+			req.satisfied.event = err;
+			req.emit('evn', err);
+			setTimeout(module.parent.exports.loadMiddlewares, module.parent.exports.time);
 		}
 	}
 	if (/^\/((un)?register|log(in|out))?$/i.test(msg.pathname)) {
@@ -104,7 +126,7 @@ exports.middleware = function middleware(req, res, msg) {
 					req.emit('err', err);
 				}
 			}
-			if (msg.query.logout || /\/logout/gi.test(msg.pathname)) {
+			if (/\/logout/gi.test(msg.pathname)) {
 				let cookie = new Array(req.headers.cookie || []);
 				cookie = cookie.filter(cook => !cook.startsWith('user') && !cook.startsWith('pass'));
 				res.setHeader('Set-Cookie', cookie);

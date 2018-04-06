@@ -32,6 +32,14 @@ exports.middleware = function middleware(req, res, msg) {
 					fixes = nfx;
 				}
 				fixes = fixes.flt();
+				var nar = [];
+				fixes.forEach(fix => {
+					nar.push('-d-' + fix);
+					nar.push('-f-' + fix);
+					nar.push('-d-f-' + fix);
+					nar.push('-d-f-' + fix);
+				});
+				fixes = nar.flt();
 				var counter = 0;
 				tick();
 				function tick() {

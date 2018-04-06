@@ -1,9 +1,9 @@
 exports.before = [];
-exports.after = ['fix', 'static', 'directory'];
+exports.after = ['fix', 'static', 'directory', 'command'];
 exports.name = 'end';
 
 exports.middleware = function middleware(req, res, msg) {
-	if (req.satisfied.main && !res.finished) {
+	if (!req.satisfied.main && !res.finished && !res.satisfied.error) {
 		res.end();
 		req.satisfied.main = true;
 	}

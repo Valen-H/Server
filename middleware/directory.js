@@ -1,42 +1,67 @@
-const fs = module.parent.exports.fs;
+const fs = module.parent.exports.fs,
+PUBLIC = module.parent.exports.home + '/public';
 
 exports.after = ['fix', 'static', 'command'];
 exports.before = ['end'];
 exports.name = 'directory';
 
 exports.middleware = function middleware(req, res, msg) {
-	if (!req.satisfied.main && !msg.filename.startsWith('d-') && !req.satisfied.error) {
+	if (!req.satisfied.main && !msg.pathname.includes('-d-') && !req.satisfied.event) {
 		var e = false;
-		fs.stat(module.parent.exports.home + '/public' + msg.pathname, (err, stat) => {
+		fs.stat(PUBLIC + msg.pathname, (err, stat) => {
 			if (!err && stat.isDirectory()) {
-				fs.readdir(module.parent.exports.home + '/public' + msg.pathname, (err, files) => {
-					files = files.filter(file => !file.startsWith('d-') || file == '.noind');
-					if (err || files.includes('.nodir')) {
-						let err = err || new Error('No such file or directory.');
-						err.code = err.code || 'ENOENT';
-						err.errno = err.errno ? err.errno : -2;
+				fs.readdir(PUBLIC + msg.pathname, (err, files) => {
+					files = files.filter(file => !file.includes('-d-'));
+					if (err) {
 						req.satisfied.error = err;
 						req.emit('err', err);
-						return;
+					} else if (files.includes('.nodir')) {
+						fs.readFile(PUBLIC + msg.pathname + '.nodir', (err, data) => {
+							if (err) {
+								req.satisfied.error = err;
+								req.emit('err', err);
+								return;
+							}
+							let file = (data.toString() || 'ALL').split('\n');
+							var temp = "\t<li value='&t'><a href='&t'>&t</a></li>\n";
+							var list = [];
+							files.filter(fil => !(file.includes(fil) || file.includes('ALL') || fil.startsWith('.no'))).forEach(file => {
+								list.push(temp.replace(/&t/gi, file));
+							});
+							fs.readFile(module.parent.exports.home + '/builtin/directory.html', (err, data) => {
+								if (err) {
+									req.satisfied.error = err;
+									req.emit('err', err);
+									return;
+								}
+								req.satisfied.main = true;
+								res.end(data.toString().replace(/&&list&&/gi, list.join('')).replace(/&&dir&&/gi, msg.pathname));
+								req.pass(res, msg);
+							});
+						});
+					} else {
+						var temp = "\t<li value='&t'><a href='&t'>&t</a></li>\n";
+						var list = [];
+						files.filter(file => !file.startsWith('.no')).forEach(file => {
+							list.push(temp.replace(/&t/gi, file));
+						});
+						fs.readFile(module.parent.exports.home + '/builtin/directory.html', (err, data) => {
+							if (err) {
+								req.satisfied.error = err;
+								req.emit('err', err);
+								return;
+							}
+							req.satisfied.main = true;
+							res.end(data.toString().replace(/&&list&&/gi, list.join('')).replace(/&&dir&&/gi, msg.pathname));
+							req.pass(res, msg);
+						});
 					}
-					var temp = "\t<li value='&t'><a href='&t'>&t</a></li>\n";
-					var list = [];
-					files.forEach(file => {
-						list.push(temp.replace(/&t/gi, file));
-					});
-					fs.readFile(module.parent.exports.home + '/builtin/directory.html', (err, data) => {
-						if (err) {
-							req.satisfied.error = err;
-							req.emit('err', err);
-							return;
-						}
-						req.satisfied.main = true;
-						res.end(data.toString().replace(/&&list&&/gi, list.join('')).replace(/&&dir&&/gi, msg.pathname));
-					});
 				});
 			} else if (err) {
 				req.satisfied.error = err;
 				req.emit('err', err);
+			} else {
+				req.pass(res, msg);
 			}
 		});
 	} else {
