@@ -5,7 +5,7 @@ fs = exports.fs = require('fs-extra'),
 event = exports.error = require('./event.js'),
 readline = exports.readline = require('readline');
 
-//----- TAKEN BY nodemodule PROJECT
+//----- TAKEN FROM nodemodule PROJECT
 Array.prototype.inherit = Array.prototype.inh = function(array) {
 	var arr = array.length > this.length ? array : this;
 	arr.forEach((function (val, ind, arr) {
@@ -35,6 +35,8 @@ const PORT = exports.port = process.env.port || process.env.npm_config_port || 8
 HOME = exports.home = fs.realpathSync(process.env.home || process.env.npm_config_home || process.cwd()),
 WARES = exports.wares = eval(process.env.wares || process.env.npm_config_wares || "Symbol('ALL')"),
 INDEX = exports.index = process.env.index || process.env.npm_config_index || 'index',
+TIME = exports.time = (process.env.time || process.env.npm_config_time || 7000) * 1,
+AUTH = exports.auth = process.env.auth || process.env.npm_config_auth || 'admin:root',
 ignore = exports.ignore = () => {};
 
 var midnames = [];
@@ -44,12 +46,18 @@ fs.ensureDirSync('middleware');
 fs.ensureDirSync(HOME + '/middlewares');
 fs.ensureFileSync('builtin/.noind');
 fs.ensureDirSync(HOME + '/public');
+fs.ensureDirSync(HOME + '/private/Accounts/' + AUTH.replace(':', '@'));
 if (!fs.readdirSync(HOME + '/middlewares').length) {
 	fs.copySync('middleware', HOME + '/middlewares');
 }
 
-function loadMiddlewares() {
-	fs.readdirSync(HOME + '/middlewares').filter(mwar => mwar.endsWith('.js') && !mwar.startsWith('d-') && (typeof WARES === 'symbol' || WARES.includes(mwar.replace(/\.js$/, '')))).flt().forEach(mwar => middlewares.push(require(HOME + '/middlewares/' + mwar)));
+var loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares() {
+	middlewares = [];
+	
+	fs.readdirSync(HOME + '/middlewares').flt().filter(mwar => mwar.endsWith('.js') && !mwar.startsWith('d-') && (typeof WARES === 'symbol' || WARES.includes(mwar.replace(/\.js$/, '')))).flt().forEach(mwar => {
+		delete require.cache[require.resolve(HOME + '/middlewares/' + mwar)];
+		middlewares.push(require(HOME + '/middlewares/' + mwar))
+	});
 	
 	do {
 		imid = middlewares.flt().concat([]);
@@ -71,7 +79,8 @@ function loadMiddlewares() {
 	} while (imid.some((i, ind) => i.name != middlewares[ind].name))
 	fs.writeFileSync(HOME + '/middlewares/order.json', JSON.stringify(middlewares.flt().map(mwar => mwar.name).join('>')));
 	midnames = midnames.flt();
-} //loadMiddlewares
+	console.info('Middlewares reloaded...');
+};
 loadMiddlewares();
 
 const server = exports.server = http.createServer((req, res) => {
@@ -90,17 +99,22 @@ const server = exports.server = http.createServer((req, res) => {
 			req.satisfied.error = err;
 			event(req, res, msg);
 		}
-	}, 7000, req, res, msg);
+	}, TIME, req, res, msg);
 	req.middle = 0;
-	req.pass = function(res, msg) {
-		if (middlewares[this.middle + 1]) middlewares[++this.middle].middleware(req, res, msg);
-	};
-	middlewares[0].middleware(req, res, msg);
-}).listen(PORT, () => console.log(`Server bound to port ${PORT}`)).on('error', console.error).on('connect', (req, socket, head) => {
+	try {
+		req.pass = function(res, msg) {
+			if (middlewares[this.middle + 1]) middlewares[++this.middle].middleware(req, res, msg);
+		};
+		middlewares[0].middleware(req, res, msg);
+	} catch (err) {
+		req.satisfied.error = err;
+		event(req, res, msg);
+	}
+}).listen(PORT, ignore).on('error', console.error).on('connect', (req, socket, head) => {
 	console.log(`${socket.remoteAddress} Connected.`);
 }).once('listening', () => {
 	fs.writeFile(HOME + '/private/up.txt', new Date(), ignore);
-});
+}).on('listening', () => console.log(`Server bound to port ${PORT}`));
 
 const rl = readline.createInterface({input: process.stdin, output: process.stdout});
 rl.on('line', line => {
@@ -109,7 +123,7 @@ rl.on('line', line => {
 		console.info('Middlewares loaded.');
 	} else if (/^exit$/i.test(line)) {
 		rl.close();
-	} else if (/^stop$/i.test(line)) {
+	} else if (/^(stop|close)$/i.test(line)) {
 		server.close();
 	} else if (/^quit$/i.test(line)) {
 		process.exit();
@@ -119,3 +133,5 @@ rl.on('line', line => {
 		console.log(eval(line));
 	}
 });
+
+process.on('unhandledRejection', ignore);
