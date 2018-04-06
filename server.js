@@ -2,8 +2,8 @@
 const http = exports.http = require('http'),
 url = exports.url = require('./lib/url-extra'),
 fs = exports.fs = require('fs-extra'),
-error = require('./error.js'),
-readline = require('readline');
+event = exports.error = require('./event.js'),
+readline = exports.readline = require('readline');
 
 //----- TAKEN BY nodemodule PROJECT
 Array.prototype.inherit = Array.prototype.inh = function(array) {
@@ -49,16 +49,16 @@ if (!fs.readdirSync(HOME + '/middlewares').length) {
 }
 
 function loadMiddlewares() {
-	fs.readdirSync(HOME + '/middlewares').filter(mwar => mwar.endsWith('.js') && !mwar.startsWith('d-') && (typeof WARES === 'symbol' || WARES.includes(mwar.replace(/\.js$/, '')))).forEach(mwar => middlewares.push(require(HOME + '/middlewares/' + mwar)));
+	fs.readdirSync(HOME + '/middlewares').filter(mwar => mwar.endsWith('.js') && !mwar.startsWith('d-') && (typeof WARES === 'symbol' || WARES.includes(mwar.replace(/\.js$/, '')))).flt().forEach(mwar => middlewares.push(require(HOME + '/middlewares/' + mwar)));
 	
 	do {
-		imid = middlewares.concat([]);
+		imid = middlewares.flt().concat([]);
 		midnames = [];
 		
-		middlewares.forEach((mwar, ind) => {
+		middlewares.flt().forEach((mwar, ind) => {
 			var apr = ind;
 			midnames.push(mwar.name);
-			middlewares.forEach((mw, ind) => {
+			middlewares.flt().forEach((mw, ind) => {
 				var tmp = apr;
 				if ((ind > apr && mwar.after.includes(mw.name)) || (ind < apr && mwar.before.includes(mw.name))) {
 					apr = ind;
@@ -67,24 +67,28 @@ function loadMiddlewares() {
 			});
 			middlewares[ind].priority = apr;
 		});
-		middlewares = middlewares.sort((m1, m2) => m1.priority - m2.priority);
+		middlewares = middlewares.flt().sort((m1, m2) => m1.priority - m2.priority);
 	} while (imid.some((i, ind) => i.name != middlewares[ind].name))
-	fs.writeFileSync(HOME + '/middlewares/order.json', JSON.stringify(middlewares.map(mwar => mwar.name).join('>')));
+	fs.writeFileSync(HOME + '/middlewares/order.json', JSON.stringify(middlewares.flt().map(mwar => mwar.name).join('>')));
+	midnames = midnames.flt();
 } //loadMiddlewares
 loadMiddlewares();
 
 const server = exports.server = http.createServer((req, res) => {
 	const msg = url.parse(req.url, true);
-	req.satisfied = {main: false, error: null};
-	req.on('err', err => {
-		error(req, res, msg);
+	req.satisfied = {main: false, set error(value) {this.event = value}, get error() {return this.event}, event: null};
+	req.once('err', err => {
+		event(req, res, msg);
+	}).on('evn', err => {
+		event(req, res, msg);
 	});
+	res.setHeader('Set-Cookie', new Array(req.headers.cookie || []));
 	setTimeout((req, res, msg) => {
 		if (!req.satisfied.main && !res.finished) {
 			let err = new Error('Connection timed out.');
 			err.code = 'ETIME';
 			req.satisfied.error = err;
-			error(req, res, msg);
+			event(req, res, msg);
 		}
 	}, 7000, req, res, msg);
 	req.middle = 0;
@@ -95,7 +99,7 @@ const server = exports.server = http.createServer((req, res) => {
 }).listen(PORT, () => console.log(`Server bound to port ${PORT}`)).on('error', console.error).on('connect', (req, socket, head) => {
 	console.log(`${socket.remoteAddress} Connected.`);
 }).once('listening', () => {
-	fs.writeFile(HOME + '/public/up.txt', new Date(), ignore);
+	fs.writeFile(HOME + '/private/up.txt', new Date(), ignore);
 });
 
 const rl = readline.createInterface({input: process.stdin, output: process.stdout});
