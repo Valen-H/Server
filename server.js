@@ -3,7 +3,9 @@ const http = exports.http = require('http'),
 url = exports.url = require('./lib/url-extra'),
 fs = exports.fs = require('fs-extra'),
 event = exports.error = require('./event.js'),
-readline = exports.readline = require('readline');
+readline = exports.readline = require('readline'),
+string_decoder = exports.string_decoder = require('string_decoder'),
+querystring = exports.querystring = require('querystring');
 
 //----- TAKEN FROM nodemodule PROJECT
 Array.prototype.inherit = Array.prototype.inh = function(array) {
@@ -55,12 +57,16 @@ var loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares()
 	middlewares = [];
 	
 	fs.readdirSync(HOME + '/middlewares').flt().filter(mwar => mwar.endsWith('.js') && !mwar.startsWith('d-') && (typeof WARES === 'symbol' || WARES.includes(mwar.replace(/\.js$/, '')))).flt().forEach(mwar => {
-		delete require.cache[require.resolve(HOME + '/middlewares/' + mwar)];
-		middlewares.push(require(HOME + '/middlewares/' + mwar))
+		try {
+			delete require.cache[require.resolve(HOME + '/middlewares/' + mwar)];
+			middlewares.push(require(HOME + '/middlewares/' + mwar) || 'null');
+		} catch(err) {
+			console.error(err);
+		}
 	});
 	
 	do {
-		imid = middlewares.flt().concat([]);
+		imid = middlewares.filter(mw => mw && mw.middleware).flt().concat([]);
 		midnames = [];
 		
 		middlewares.flt().forEach((mwar, ind) => {
@@ -75,7 +81,7 @@ var loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares()
 			});
 			middlewares[ind].priority = apr;
 		});
-		middlewares = middlewares.flt().sort((m1, m2) => m1.priority - m2.priority);
+		middlewares = middlewares.filter(mw => mw && mw.middleware).flt().sort((m1, m2) => m1.priority - m2.priority);
 	} while (imid.some((i, ind) => i.name != middlewares[ind].name))
 	fs.writeFileSync(HOME + '/middlewares/order.json', JSON.stringify(middlewares.flt().map(mwar => mwar.name).join('>')));
 	midnames = midnames.flt();
@@ -84,6 +90,7 @@ var loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares()
 loadMiddlewares();
 
 const server = exports.server = http.createServer((req, res) => {
+	req.url = querystring.unescape(req.url);
 	const msg = url.parse(req.url, true);
 	req.satisfied = {main: false, set error(value) {this.event = value}, get error() {return this.event}, event: null};
 	req.once('err', err => {
@@ -91,7 +98,19 @@ const server = exports.server = http.createServer((req, res) => {
 	}).on('evn', err => {
 		event(req, res, msg);
 	});
-	res.setHeader('Set-Cookie', new Array(req.headers.cookie || []));
+	res.setHeader('Set-Cookie', req.headers.cookie || []);
+	req.cookies = {};
+	req.dec = new string_decoder.StringDecoder();
+	req.end = false;
+	req.data = '';
+	req.on('data', data => req.data += req.dec.write(data));
+	req.once('end', () => {
+		req.end = true;
+		req.data += req.dec.end();
+		req.data = querystring.unescape(req.data);
+	});
+	req.cookiearr = (req.headers.cookie || ';').split(';').filter(i => i).flt();
+	(req.headers.cookie || ';').split(';').filter(cook => cook.includes('=')).forEach(cookie => req.cookies[cookie.split('=')[0].trim()] = cookie.split('=')[1]);
 	setTimeout((req, res, msg) => {
 		if (!req.satisfied.main && !res.finished) {
 			let err = new Error('Connection timed out.');
@@ -120,7 +139,6 @@ const rl = readline.createInterface({input: process.stdin, output: process.stdou
 rl.on('line', line => {
 	if (/^(re)?load$/i.test(line)) {
 		loadMiddlewares();
-		console.info('Middlewares loaded.');
 	} else if (/^exit$/i.test(line)) {
 		rl.close();
 	} else if (/^(stop|close)$/i.test(line)) {
@@ -133,5 +151,3 @@ rl.on('line', line => {
 		console.log(eval(line));
 	}
 });
-
-process.on('unhandledRejection', ignore);

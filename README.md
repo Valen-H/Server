@@ -1,7 +1,7 @@
 ## Folders  
   * **middlewares/** -> Contains all active middlewares plus a runtime-made `order.json` file that designates the middleware execution order and prevents middleware copying from `middleware/`, if empty (initially) the server will auto-copy the middlewares from the folder `middleware`.  
   * **middleware/** -> Contains all builtin middlewares.  
-  * **builtin/** -> contains all builtin html templates  
+  * **builtin/** -> contains all builtin html templates.  
   * **public/** -> Contains all server pages.  
   * **private/** -> Contains all server-hidden data such as `Accounts/` and logs.  
   * **lib/** -> Contains all modules.  
