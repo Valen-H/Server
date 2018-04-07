@@ -1,13 +1,30 @@
+/*
+	strength:
+		extreme : correct superpath
+		extended : assume extension 'n' stuff...
+		basic : autocorrect small common mistypes
+*/
+
 const fs = module.parent.exports.fs,
 url = module.parent.exports.url;
 
-exports.after = [];
+exports.after = ['command'];
 exports.before = ['static', 'directory', 'end'];
 exports.name = 'fix';
 
+try {
+	fs.ensureFileSync(`${module.filename.replace(/\.js$/, '')}.json`);
+	exports.fix = JSON.parse(fs.readFileSync(`${module.filename.replace(/\.js$/, '')}.json`) || '{}');
+} catch(err) {
+	exports.fix = {
+		strength: 'extreme' || 'extended' || 'basic'
+	};
+	fs.writeFile(`${module.filename.replace(/\.js$/, '')}.json`, JSON.stringify(exports.fix), module.parent.exports.ignore);
+}
+
 exports.middleware = function middleware(req, res, msg) {
 	if (!req.satisfied.main) {
-		fs.stat(module.parent.exports.home + '/public' + msg.pathname, (err, stat) => {
+		fs.stat(module.parent.exports.home + '/public' + msg.pathname, async (err, stat) => {
 			if (!err && stat.isDirectory() && !msg.pathname.endsWith('/')) {
 				msg.pathname += '/';
 				res.writeHead(302, module.parent.exports.http.STATUS_CODES['302'], {
@@ -17,11 +34,15 @@ exports.middleware = function middleware(req, res, msg) {
 			} else if (!err) {
 				req.pass(res, msg);
 			} else {
-				var v1 = msg.filename;
+				var v1 = msg.filename, fixes;
 				v1 = v1[0].toUpperCase() + v1.slice(1);
 				var v2 = msg.filename;
 				v2 = v2[0].toLowerCase() + v2.slice(1);
-				var fixes = [[v2, msg.extension].join('.'), [v1, msg.extension].join('.'), [msg.filename.toUpperCase(), msg.extension].join('.'), [msg.filename.toLowerCase(), msg.extension].join('.')];
+				if (msg.extension) {
+					fixes = [[v2, msg.extension].join('.'), [v1, msg.extension].join('.'), [msg.filename.toUpperCase(), msg.extension].join('.'), [msg.filename.toLowerCase(), msg.extension].join('.')];
+				} else {
+					fixes = [v2, v1, msg.filename.toUpperCase(), msg.filename.toLowerCase()];
+				}
 				if (/^html?$/i.test(msg.extension)) {
 					var nfx = [];
 					fixes.forEach(fix => {
@@ -32,14 +53,25 @@ exports.middleware = function middleware(req, res, msg) {
 					fixes = nfx;
 				}
 				fixes = fixes.flt();
-				var nar = [];
+				var nar = fixes;
 				fixes.forEach(fix => {
 					nar.push('-d-' + fix);
 					nar.push('-f-' + fix);
 					nar.push('-d-f-' + fix);
-					nar.push('-d-f-' + fix);
+					nar.push('-f-d-' + fix);
 				});
 				fixes = nar.flt();
+				if (exports.fix.strength === 'extended' || exports.fix.strength === 'extreme') {
+					try {
+						var files = await dir(module.parent.exports.home + '/public' + msg.directory);
+						files.filter(file =>
+						msg.file.includes(file) ||
+						msg.file.toUpperCase().includes(file.toUpperCase()) ||
+						file.includes(msg.filename) ||
+						file.toUpperCase().includes(msg.filename.toUpperCase())
+						).forEach(i => fixes.push(i));
+					} catch(err) {}
+				}
 				var counter = 0;
 				tick();
 				function tick() {
@@ -66,3 +98,14 @@ exports.middleware = function middleware(req, res, msg) {
 	}
 	return req.satisfied;
 };
+
+var dir = async function dir(dr) {
+	return new Promise((rsl, rjc) => {
+		fs.readdir(dr, (err, files) => {
+			if (err) rjc(err);
+			rsl(files);
+		});
+	});
+};
+
+//TODO : SCAN SUPERPATH TOO

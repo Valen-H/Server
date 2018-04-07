@@ -3,7 +3,7 @@ exports.after = ['fix', 'static', 'directory', 'command'];
 exports.name = 'end';
 
 exports.middleware = function middleware(req, res, msg) {
-	if (!req.satisfied.main && !res.finished && !res.satisfied.error) {
+	if (!req.satisfied.main && !res.finished && !req.satisfied.error) {
 		res.end();
 		req.satisfied.main = true;
 	}
