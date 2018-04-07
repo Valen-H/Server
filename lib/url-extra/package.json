@@ -1,6 +1,6 @@
 {
   "name": "url-extra",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "A url wrapper that offers more options than the builtin one.",
   "main": "index.js",
   "scripts": {
