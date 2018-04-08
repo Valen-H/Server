@@ -12,9 +12,13 @@
 		<script>
 			onload = function(e) {
 				//alert(document.documentElement.outerHTML)
-				if (&&back&&) setTimeout(history.back, &&intr&& * 1, &&times&&);
-				if ('&&redi&&' != 'undefined') setTimeout(function(redi) {location = redi}, &&intr&&, '&&redi&&');
-				if ('&&ale&&' != 'undefined') alert('&&ale&&');
+				pars = {};
+				location.href.split('?').slice(1).join('?').split('&').forEach(function(param) {
+					pars[param.split('=')[0]] = param.split('=').slice(1).join('=');
+				});
+				if (&&back&& || pars.back) setTimeout(history.back, (&&intr&& || pars.intr) * 1, &&times&& || pars.times);
+				if ('&&redi&&' != 'undefined' || pars.redi) setTimeout(function(redi) {location = redi}, (&&intr&& || pars.intr) * 1, pars.redi || '&&redi&&');
+				if ('&&ale&&' != 'undefined' || pars.ale) alert(pars.ale || '&&ale&&');
 			};
 		</script>
 	</head>
