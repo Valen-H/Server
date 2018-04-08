@@ -2,8 +2,37 @@
 <html>
 	<head>
 		<meta name=viewport content=width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no>
+		<script src=/JS/Module.min.js></script>
+		<script src=/JS/Canvas.min.js></script>
+		<link href=/CSS/Main.css rel=stylesheet />
+		<title>Server</title>
+		<link href=/favicon.ico rel=icon>
+		<meta charset=UTF-8>
+		<meta name=description content=Content>
+		<meta name=keywords content=HTML,CSS,JS>
+		<meta name=author content=ValentinHacker>
+		<script>
+			onload = function() {
+				cookies = {};
+				document.cookie.split(';').forEach(function(cookie) {
+					cookies[cookie.split('=')[0]] = cookie.split('=')[1];
+				});
+				act(body, '%');
+				dbg();
+				mul(body, "background='@radial-gradient(white 5%, lightgrey 80%, grey 110%)'");
+				if ("<& req.cookies.user == module.parent.exports.auth.split(':')[0] &>") {
+					admin = true;
+				} else {
+					admin = false;
+				}
+			};
+		</script>
 	</head>
-	<body>
-		<h1>Welcome!</h1>
+	<body class='fullscreen flexc center'>
+		<h1>Welcome!</h1><br/>
+		<h4>%%cookies.user || " "%%</h4><br/>
+		<div>
+			<button onclick=location='portal.html'><& !req.cookies.user ? 'Register/Login' : 'Unregister/Logout' &></button>
+		</div>
 	</body>
 </html>
