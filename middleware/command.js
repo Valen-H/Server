@@ -1,6 +1,7 @@
 const fs = module.parent.exports.fs,
 querystring = module.parent.exports.querystring,
-HOME = module.parent.exports.home;
+HOME = module.parent.exports.home,
+chalk = module.parent.exports.chalk;
 
 exports.after = [];
 exports.before = ['fix', 'directory', 'static', 'end'];
@@ -19,7 +20,7 @@ try {
 	fs.writeFile(`${module.filename.replace(/\.js$/, '')}.json`, JSON.stringify(exports.command), module.parent.exports.ignore);
 }
 
-exports.middleware = function middleware(req, res, msg) {
+exports.middleware = async function middleware(req, res, msg) {
 	if (exports.command.administration && (msg.query.auth == module.parent.exports.auth || req.cookies.user == module.parent.exports.auth.split(':')[0])) {
 		if (/^\/close\/?$/i.test(msg.pathname)) {
 			let err = new Error('Server Closed.');
@@ -31,8 +32,16 @@ exports.middleware = function middleware(req, res, msg) {
 		}
 		if (/^\/eval\/?$/i.test(msg.pathname) || msg.query.eval) {
 			try {
-				console.info(`Eval'd : ${msg.query.eval}`);
-				res.end(eval(msg.query.eval) + '');
+				console.log(chalk`{dim.bgGreen Eval'd : ${msg.query.eval}}`);
+				try {
+					let dat;
+					res.end(dat = eval(msg.query.eval) + '');
+					console.info(dat);
+				} catch(err) {
+					console.error(err);
+					req.satisfied.error = err;
+					req.emit('err', err);
+				}
 				req.satisfied.main = true;
 			} catch (err) {
 				req.satisfied.error = err;
@@ -54,6 +63,31 @@ exports.middleware = function middleware(req, res, msg) {
 			req.satisfied.event = err;
 			req.emit('evn', err);
 			setTimeout(module.parent.exports.loadMiddlewares, exports.command.time || module.parent.exports.time || 5000);
+		}
+		if (/^\/ban\/?$/i.test(msg.pathname) && msg.query.user) {
+			var evn = new Error('Account Banned.');
+			evn.code = 'EACCBAN';
+			evn.color = 'green';
+			req.satisfied.event = evn;
+			fs.readdir(HOME + '/private/Accounts', (err, files) => {
+				if (err) {
+					req.satisfied.error = err;
+					req.emit('err', err);
+					return;
+				}
+				fs.remove(HOME + '/private/Accounts/' + files.filter(file => file.startsWith(msg.query.user))[0], err => {
+					if (err || !files.filter(file => file.startsWith(msg.query.user)).length) {
+						evn = new Error('Invalid Account.');
+						evn.code = 'EACCERR';
+						delete evn.color;
+						req.satisfied.event = evn;
+						req.emit('evn', evn);
+						return;
+					}
+					console.info(chalk`{dim.bgRed Account '${msg.query.user}' was banned...}`);
+					req.emit('evn', evn);
+				});
+			});
 		}
 	}
 	if (req.method === 'POST' && exports.command.accounting && (/^\/?((un)?register|log(in|out))?$/i.test(msg.pathname) || /[?&](log(in|out)|(un)?register)=.+/gi.test(msg.querystring))) {
@@ -160,13 +194,13 @@ exports.middleware = function middleware(req, res, msg) {
 					err.back = true;
 					err.redirect = msg.query.redirect || '/';
 					req.satisfied.error = err;
-					req.emit('evn', err);
 					res.setHeader('Set-Cookie', cookie);
+					req.emit('evn', err);
 				}
 				req.pass(res, msg);
 			});
 		});
-	} else {
+	} else if (!req.satisfied.event) {
 		req.pass(res, msg);
 	}
 	fs.writeFile(`${module.filename.replace(/\.js$/, '')}.json`, JSON.stringify(exports.command, null, 1), module.parent.exports.ignore);

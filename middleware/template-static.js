@@ -35,7 +35,7 @@ exports.middleware = function middleware(req, res, msg) {
 								} catch(err) {
 									return err;
 								}
-							}), 'binary');
+							}), 'buffer');
 						} else {
 							fs.createReadStream(PUBLIC + msg.pathname).pipe(res);
 						}
