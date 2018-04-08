@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 const http = exports.http = require('http'),
 url = exports.url = require('./lib/url-extra'),
 fs = exports.fs = require('fs-extra'),
@@ -55,7 +56,17 @@ if (!fs.readdirSync(HOME + '/middlewares').length) {
 	fs.copySync('middleware', HOME + '/middlewares');
 }
 
-var loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares() {
+fs.watch(HOME + '/middlewares', {recursive: true}, (type, file) => {
+	if (type == 'change' && file.endsWith('.js')) loadMiddlewares();
+});
+const watch = exports.watch = fs.watch(HOME, (type, file) => {
+	if (type == 'change' && file.endsWith('.js')) {
+		restart();
+		watch.close();
+	}
+});
+
+const loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares() {
 	middlewares = [];
 	fs.readdirSync(HOME + '/middlewares').flt().filter(mwar => mwar.endsWith('.js') && !mwar.startsWith('d-') && (typeof WARES === 'symbol' || WARES.includes(mwar.replace(/\.js$/, '')))).flt().forEach(mwar => {
 		try {
@@ -85,6 +96,15 @@ var loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares()
 	fs.writeFileSync(HOME + '/middlewares/order.json', JSON.stringify(middlewares.flt().map(mwar => mwar.name).join('>')));
 	midnames = midnames.flt();
 	console.info(chalk`{grey Middlewares reloaded...}`);
+},
+restart = exports.restart = function restart() {
+	rl.close();
+	server.once('close', () => {
+		delete require.cache[require.resolve(module.filename)];
+		exports = require(module.filename);
+		exports.rl.comm = rl.comm;
+	});
+	server.close();
 };
 
 loadMiddlewares();
@@ -98,7 +118,6 @@ const server = exports.server = http.createServer((req, res) => {
 	}).on('evn', err => {
 		event(req, res, msg);
 	});
-	res.setHeader('Set-Cookie', req.headers.cookie || []);
 	req.cookies = {};
 	req.dec = new string_decoder.StringDecoder();
 	req.end = false;
@@ -137,16 +156,13 @@ const server = exports.server = http.createServer((req, res) => {
 }).on('listening', () => console.log(chalk`Server bound to port {greenBright ${PORT}}`));
 
 const rl = exports.rl = readline.createInterface({input: process.stdin, output: process.stdout});
+rl.comm = false;
 rl.on('line', line => {
+	if (rl.comm) line = '# ' + line;
 	if (/^((re)?load|rel)$/i.test(line)) {
 		loadMiddlewares();
 	} else if (/^((re)?start|res)$/i.test(line)) {
-		server.close();
-		rl.close();
-		delete require.cache[require.resolve(module.filename)];
-		with (global) {
-			exports = require(module.filename);
-		}
+		restart();
 	} else if (/^exi?t?$/i.test(line)) {
 		rl.close();
 	} else if (/^(stop|close|cls)$/i.test(line)) {
@@ -155,22 +171,20 @@ rl.on('line', line => {
 		process.exit();
 	} else if (/^clea[nr]$/i.test(line)) {
 		console.clear();
-	} else if (/^# /i.test(line)) {
+	} else if (/^#$/i.test(line)) {
+		rl.comm = true;
+		console.info(chalk`{dim.yellow Shell session engaged.}`);
+	} else if (/^# ?#{1,2}$/i.test(line)) {
+		rl.comm = false;
+		console.info(chalk`{yellow Shell session disengaged.}`);
+	} else if (/^# .(?!#)/i.test(line)) {
 		const proc = child_process.spawn(line.split(' ')[1], line.split(' ').slice(2).concat(line.split(' ')[1] == 'ls' ? ['--color=auto'] : []), {
 			cwd: process.cwd(),
 			silent: true,
 			detached: false,
-			/*gid: process.getgid(),
-			uid: process.getuid(),*/
 			shell: true,
 			stdio: 'inherit'
 		});
-		/*proc.stdout.on('data', data => {
-			console.log(`stdout: ${data}`);
-		});
-		proc.stderr.on('data', data => {
-			console.log(`stderr: ${data}`);
-		});*/
 		proc.on('error', console.error);
 		proc.on('close', code => {
 			if (code) {

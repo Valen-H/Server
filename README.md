@@ -30,7 +30,8 @@
   * **stop|close|cls** -> Close server.  
   * **quit|qt** -> Close process.  
   * **clear|clean** -> Clear console.  
-  * **# *command*** -> executes local commands.  
+  * **# *command*** -> Executes local commands.  
+  * **#** -> Toggles Shell.  
   * *Everything else gets evaluated with `eval`*  
   
 ## Features  
