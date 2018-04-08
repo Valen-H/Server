@@ -9,22 +9,27 @@
   * **private/Accounts/aa@bb/stat.json** -> Account data.  
   
 ## Environment  
-  * **port** -> Server port.  
-  * **home** -> Server main path.  
-  * **index** -> Statically served directories homepage.  
+  * **port** -> Server port. Defaults to `8080`.  
+  * **home** -> Server main path. Defaults to `./`.  
+  * **index** -> Statically served directories homepage. Defaults to `index`.  
   * **wares** -> Middlewares to be used, defaults to `Symbol('ALL')`.  
-  * **auth** -> Admin user:pass key.  
-  * **time** -> Default timeout for incomplete requests, redirections and other timing functions.  
+  * **auth** -> Admin user:pass key. Defaults to `admin:root`.  
+  * **time** -> Default timeout for incomplete requests, redirections and other timing functions. Defaults to `7000`.    
   
 ## Builtins  
-  * **command.js** -> Contains commands which can be executed by respective url, like : `http://localhost:8080/close?auth=admin:root` and `http://localhost:port/?login=admin:root&from=reg`, this middleware controls a `private/Accounts` folder with registered server accounts to be controlled by POST `register=account:password, unregister=account:password, login=account:password, logout (affects currently loged-in account)` commands in that order.  
+  * **command.js** -> Contains commands which can be executed by respective url or console command, like :  
+    * `http://localhost:8080/close?auth=admin:root`  
+    * `http://localhost:8080/reload?auth=admin:root`  
+    * `http://localhost:8080/restart?auth=admin:root`  
+    * `http://localhost:port/?login=admin:root&from=reg`  
+  this middleware controls a `private/Accounts` folder with registered server accounts to be controlled by ***POST*** `register=account:password, unregister=account:password, login=account:password, logout=true (affects currently loged-in account)` or `mode=register|login|logout|unregister, user=user, pass=password` commands in that order.  
   * **fix.js** -> Url autocorrection utility, e.g: suppose our server has a file called `file.htm` but the user requests for `FILE.html`, the server assumes and corrects the url as long as request content has not already been served.  
   * **template-static** -> Similar to `static` but also translates `<& code &>` with its evaluated output.  
   * **d-static.js** -> Disabled by default (`d-`) due to `template-static` usage. Serves content under `/public` folder directly to the user. If user requests for a directory and that directory contains an index page (whose name is designated by `process.env.index` which defaults at `index` and applies for `.htm|.html|.js` filetypes), then that page is server instead of directory index list as long as that directory does not contain a `.noind` file and request content is not already served.  
   * **directory.js** -> Lists all files of a directory and prints on the `builtin/directory.html` page (by replacing `&&list&&` with the list and `&&dir&&` in the template with the directory path) as long as the directory does not contain a `.nodir` file and request content has not already been served.  
   * **end.js** -> It makes sure that all unfinished responses are terminated.  
   
-> All middlewares whose names start with `d-` have themselves excluded from the middleware list.  
+> All middlewares whose names start with `d-` will have themselves excluded from the middleware list.  
   
 ## Command-Line  
   * **reload|rel|load** -> Forces middlewares to reload.  
@@ -35,7 +40,13 @@
   * **clear|clean** -> Clear console.  
   * **# *command*** -> Executes local commands.  
   * **#** -> Toggles Shell.  
-  * *Everything else gets evaluated with `eval`*  
+  * **eval *expression*** -> Evaluate expression with `eval`.  
+  * ***command.js***  
+    * **reg|regist|register user[@pass]** -> Register new user.  
+    * **ban user** -> Ban user.  
+    * **[user]list** -> List accounts.  
+  
+> `npm test` will install the `serve` shortcut binary and commence `npm start`.  
   
 ## Features  
   * Files/Folders with names containing `-d-` (plus its subfolders) are excluded from directory indexing and static serving.  
