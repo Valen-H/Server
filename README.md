@@ -1,10 +1,12 @@
-## Folders  
+## Folders/Files  
   * **middlewares/** -> Contains all active middlewares plus a runtime-made `order.json` file that designates the middleware execution order and prevents middleware copying from `middleware/`, if empty (initially) the server will auto-copy the middlewares from the folder `middleware`.  
   * **middleware/** -> Contains all builtin middlewares.  
   * **builtin/** -> contains all builtin html templates.  
   * **public/** -> Contains all server pages.  
   * **private/** -> Contains all server-hidden data such as `Accounts/` and logs.  
   * **lib/** -> Contains all modules.  
+  * **private/up.txt** -> Server startup Date.  
+  * **private/Accounts/aa@bb/stat.json** -> Account data.  
   
 ## Environment  
   * **port** -> Server port.  
@@ -48,8 +50,8 @@
     exports.before = ['end'];
     exports.middleware = function middleware(request, response, message) {
     	if (error) {
-    		req.satisfied.error = error;
-    		req.emit('err', error);
+    		request.satisfied.error = error;
+    		request.emit('err', error);
     	} else {
     		request.satisfied.main = true;
     		response.write('');

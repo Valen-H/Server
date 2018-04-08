@@ -1,11 +1,14 @@
 {
   "name": "server",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "A localhost server framework with custom middlewares and templating engine.",
   "main": "server.js",
   "scripts": {
-    "test": "alias start='npm start' && npm start",
+    "test": "npm install -g && npm start",
     "start": "node server.js --no-deprecation"
+  },
+  "bin": {
+  	 "serve": "./server.js"
   },
   "repository": {
     "type": "git",
@@ -19,7 +22,9 @@
   "license": "ISC",
   "dependencies": {
     "chalk": "^2.3.2",
-    "fs-extra": "^5.0.0",
-    "url-extra": "file:///storage/sdcard0/Web/Node/url-extra"
+    "fs-extra": "^5.0.0"
+  },
+  "optionalDependencies": {
+  	 "url-extra": "file:./lib/url-extra"
   }
 }
