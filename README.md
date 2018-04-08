@@ -22,8 +22,13 @@
     * `http://localhost:8080/reload?auth=admin:root`  
     * `http://localhost:8080/restart?auth=admin:root`  
     * `http://localhost:port/?login=admin:root&from=reg`  
-  this middleware controls a `private/Accounts` folder with registered server accounts to be controlled by ***POST*** `register=account:password, unregister=account:password, login=account:password, logout=true (affects currently loged-in account)` or `mode=register|login|logout|unregister, user=user, pass=password` commands in that order.  
-  * **fix.js** -> Url autocorrection utility, e.g: suppose our server has a file called `file.htm` but the user requests for `FILE.html`, the server assumes and corrects the url as long as request content has not already been served.  
+  this middleware controls a `private/Accounts` folder with registered server accounts to be controlled by ***POST*** `register=account:password, unregister=account:password, login=account:password, logout=true (affects currently loged-in account)` or `mode=register|login|logout|unregister, user=user, pass=password` requests in that order. It automatically generates a `middleware/command.json` file for further setting (as other modules), the following all default to `true` :  
+    * **administration** -> Whether administration commands will be enabled (`close, restart, reload, eval, ban`).  
+    * **accounting** -> Whether the inner accounting system will be enabled (`register, unregister, login, logout`).  
+  * **fix.js** -> Url autocorrection utility, e.g: suppose our server has a file called `file.htm` but the user requests for `FILE.html`, the server assumes and corrects the url as long as request content has not already been served. Modes (declared in `middlewares/fix.json`) :   
+    * **extreme** -> Corrects filenames, direnames and upper/super-dirnames with assumptions.  
+    * **extended** -> Corrects filenames, direnames with assumptions.  
+    * **basic** -> Corrects filenames and direnames slightly  
   * **template-static** -> Similar to `static` but also translates `<& code &>` with its evaluated output.  
   * **d-static.js** -> Disabled by default (`d-`) due to `template-static` usage. Serves content under `/public` folder directly to the user. If user requests for a directory and that directory contains an index page (whose name is designated by `process.env.index` which defaults at `index` and applies for `.htm|.html|.js` filetypes), then that page is server instead of directory index list as long as that directory does not contain a `.noind` file and request content is not already served.  
   * **directory.js** -> Lists all files of a directory and prints on the `builtin/directory.html` page (by replacing `&&list&&` with the list and `&&dir&&` in the template with the directory path) as long as the directory does not contain a `.nodir` file and request content has not already been served.  
