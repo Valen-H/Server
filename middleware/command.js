@@ -21,6 +21,7 @@ try {
 }
 
 exports.middleware = async function middleware(req, res, msg) {
+	res.setHeader('Set-Cookie', req.headers.cookie || []);
 	if (exports.command.administration && (msg.query.auth == module.parent.exports.auth || req.cookies.user == module.parent.exports.auth.split(':')[0])) {
 		if (/^\/close\/?$/i.test(msg.pathname)) {
 			let err = new Error('Server Closed.');
@@ -122,6 +123,10 @@ exports.middleware = async function middleware(req, res, msg) {
 						err.color = 'green';
 						req.satisfied.error = err;
 						req.emit('evn', err);
+						let cookie = new Array(req.headers.cookie || []);
+						cookie.push(`user=${query.split('@')[0]}; SameSite=Strict`);
+						cookie.push(`pass=${query.split('@')[1]}; HttpOnly ; SameSite=Strict`);
+						res.setHeader('Set-Cookie', cookie);
 					} else {
 						let err = new Error('Account name taken or invalid username/password characters passed.');
 						err.code = 'Failure.';
@@ -151,6 +156,10 @@ exports.middleware = async function middleware(req, res, msg) {
 						req.satisfied.error = err;
 						req.emit('err', err);
 					}
+					let cookie = req.cookiearr.concat([]);
+					cookie.push(`user=; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
+					cookie.push(`pass=; HttpOnly ; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
+					res.setHeader('Set-Cookie', cookie);
 				}
 				if ((msg.query.login = msg.query.login || [msg.query.user || 'null', msg.query.pass || 'none'].filter(i => i).join(':')) && (msg.query.mode = msg.query.mode || msg.pathname.replace(/^\//, '')) == 'login') {
 					let query = msg.query.login.split(':');
@@ -180,8 +189,9 @@ exports.middleware = async function middleware(req, res, msg) {
 				}
 				if (/\/logout/gi.test(msg.pathname) || (msg.query.mode = msg.query.mode || msg.pathname.replace(/^\//, '')) == 'logout') {
 					let cookie = req.cookiearr.concat([]);
-					cookie.push(`user=; SameSite=Strict; Max-Age=1; Expires=1`);
-					cookie.push(`pass=none; HttpOnly ; SameSite=Strict; Max-Age=1; Expires=1`);
+					cookie.push(`user=; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
+					cookie.push(`pass=; HttpOnly ; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
+					res.setHeader('Set-Cookie', cookie);
 					var err;
 					if (req.cookiearr.length) {
 						err = new Error('Successful logout.');
@@ -194,7 +204,6 @@ exports.middleware = async function middleware(req, res, msg) {
 					err.back = true;
 					err.redirect = msg.query.redirect || '/';
 					req.satisfied.error = err;
-					res.setHeader('Set-Cookie', cookie);
 					req.emit('evn', err);
 				}
 				req.pass(res, msg);
