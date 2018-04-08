@@ -23,8 +23,8 @@
     * `http://localhost:8080/restart?auth=admin:root`  
     * `http://localhost:port/?login=admin:root&from=reg`  
   this middleware controls a `private/Accounts` folder with registered server accounts to be controlled by ***POST*** `register=account:password, unregister=account:password, login=account:password, logout=true (affects currently loged-in account)` or `mode=register|login|logout|unregister, user=user, pass=password` requests in that order. It automatically generates a `middleware/command.json` file for further setting (as other modules), the following all default to `true` :  
-    * **administration** -> Whether administration commands will be enabled (`close, restart, reload, eval, ban`).  
-    * **accounting** -> Whether the inner accounting system will be enabled (`register, unregister, login, logout`).  
+    * **administration** -> Whether administration GET commands will be enabled (`close?auth=admin:pass, restart?auth=admin:pass , reload?auth=admin:pass , eval?auth=admin:pass , ban?auth=admin:pass&user=name`). `auth` parameter is optional for logged-in admin.  
+    * **accounting** -> Whether the inner POST accounting system will be enabled (`register, unregister, login, logout`).  
   * **fix.js** -> Url autocorrection utility, e.g: suppose our server has a file called `file.htm` but the user requests for `FILE.html`, the server assumes and corrects the url as long as request content has not already been served. Modes (declared in `middlewares/fix.json`) :   
     * **extreme** -> Corrects filenames, direnames and upper/super-dirnames with assumptions.  
     * **extended** -> Corrects filenames, direnames with assumptions.  
