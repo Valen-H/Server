@@ -1,7 +1,8 @@
 const fs = module.parent.exports.fs,
 querystring = module.parent.exports.querystring,
 HOME = module.parent.exports.home,
-chalk = module.parent.exports.chalk;
+chalk = module.parent.exports.chalk,
+parent = module.parent.exports;
 
 exports.after = [];
 exports.before = ['fix', 'directory', 'static', 'end'];
@@ -20,6 +21,55 @@ try {
 	fs.writeFile(`${module.filename.replace(/\.js$/, '')}.json`, JSON.stringify(exports.command), module.parent.exports.ignore);
 }
 
+parent.rl.on('line', line => {
+	if (/^ban .+$/i.test(line)) {
+		var user = line.split(' ').slice(1).join(' ').split('@')[0];
+		fs.readdir(HOME + '/private/Accounts', (err, files) => {
+			fs.remove(HOME + '/private/Accounts/' + files.filter(file => file.startsWith(user + '@'))[0], err => {
+				if (err || !files.filter(file => file.startsWith(user + '@')).length) {
+					console.error(chalk`{magenta.italic ${err || 'Invalid Username.'}}`);
+				} else {
+					console.info(chalk`User ${user} has been {redBright.bold Banned}.`);
+				}
+			});
+		});
+	} else if (/^reg(ist(er)?)? .+$/i.test(line)) {
+		fs.readdir(HOME + '/private/Accounts', (err, files) => {
+			var user = line.split(' ').slice(1).join(' ');
+			if (!user.includes('@')) {
+				user += '@none';
+			}
+			if (files.includes(user)) {
+				console.error(chalk`{magenta.italic User Exists.}`);
+				return;
+			}
+			fs.ensureFile(HOME + '/private/Accounts/' + user + '/stats.json', err => {
+				if (err) {
+					console.error(chalk`{magenta.italic ${err || 'No account password given.'}}`);
+				} else {
+					fs.writeFile(HOME + '/private/Accounts/' + user + '/stats.json', JSON.stringify({
+						registration: {
+							date: new Date()
+						},
+						login: {
+							last: new Date()
+						},
+						logout: {
+							last: null
+						}
+					}), err => {
+						console.info(chalk`User ${user} has been {greenBright.bold Registered}.`);
+					});
+				}
+			});
+		});
+	} else if (/^(user)?list$/i.test(line)) {
+		fs.readdir(HOME + '/private/Accounts', (err, files) => {
+			console.log(chalk`{bold ${files.join('\n')}}`);
+		});
+	}
+});
+
 exports.middleware = async function middleware(req, res, msg) {
 	res.setHeader('Set-Cookie', req.headers.cookie || []);
 	if (exports.command.administration && (msg.query.auth == module.parent.exports.auth || req.cookies.user == module.parent.exports.auth.split(':')[0])) {
@@ -28,7 +78,6 @@ exports.middleware = async function middleware(req, res, msg) {
 			err.code = 'ESERCLS';
 			req.satisfied.error = err;
 			req.emit('evn', err);
-			console.info(`Server closed at : ${new Date()}`);
 			module.parent.exports.server.close();
 		}
 		if (/^\/eval\/?$/i.test(msg.pathname) || msg.query.eval) {
@@ -38,7 +87,7 @@ exports.middleware = async function middleware(req, res, msg) {
 					let dat;
 					res.end(dat = eval(msg.query.eval) + '');
 					console.info(dat);
-				} catch(err) {
+				} catch (err) {
 					console.error(err);
 					req.satisfied.error = err;
 					req.emit('err', err);
@@ -54,9 +103,7 @@ exports.middleware = async function middleware(req, res, msg) {
 			err.code = 'ESERRST';
 			req.satisfied.event = err;
 			req.emit('evn', err);
-			console.info(`Server closed at : ${new Date()}`);
-			module.parent.exports.server.once('close', () => module.parent.exports.server.listen(module.parent.exports.port));
-			module.parent.exports.server.close();
+			module.parent.exports.restart();
 		}
 		if (/^\/reload\/?$/i.test(msg.pathname)) {
 			let err = new Error('Server Reloading.');
@@ -114,12 +161,31 @@ exports.middleware = async function middleware(req, res, msg) {
 								req.satisfied.error = err;
 								req.emit('err', err);
 							} else {
-								fs.writeFile(HOME + '/private/Accounts/' + query + '/stats.json', JSON.stringify({ registrationDate: new Date() }));
+								if (req.cookies.user) {
+									fs.readFile(HOME + '/private/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', (err, data) => {
+										var dat = JSON.parse(data || '{"logout": {}}');
+										dat.logout.last = new Date();
+										fs.writeFile(HOME + '/private/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', JSON.stringify(dat, null, 1), module.parent.exports.ignore);
+									});
+								}
+								fs.writeFile(HOME + '/private/Accounts/' + query + '/stats.json', JSON.stringify({
+									registration: {
+										date: new Date(),
+										ip: req.socket.remoteAddress
+									},
+									login: {
+										last: new Date()
+									},
+									logout: {
+										last: null
+									}
+								}));
 							}
 						});
 						let err = new Error('Account created.');
 						err.code = 'Success.';
 						err.back = true;
+						err.redirect = msg.query.redirect || '/';
 						err.color = 'green';
 						req.satisfied.error = err;
 						req.emit('evn', err);
@@ -146,6 +212,7 @@ exports.middleware = async function middleware(req, res, msg) {
 						let err = new Error('Account deleted.');
 						err.code = 'Success.';
 						err.back = true;
+						err.redirect = msg.query.redirect || '/';
 						err.color = 'green';
 						req.satisfied.error = err;
 						req.emit('evn', err);
@@ -168,7 +235,7 @@ exports.middleware = async function middleware(req, res, msg) {
 					}
 					query = query.join('@');
 					if (files.includes(query)) {
-						let cookie = new Array(req.headers.cookie || []);
+						let cookie = req.cookiearr;
 						cookie.push(`user=${query.split('@')[0]}; SameSite=Strict`);
 						cookie.push(`pass=${query.split('@')[1]}; HttpOnly ; SameSite=Strict`);
 						res.setHeader('Set-Cookie', cookie);
@@ -179,6 +246,18 @@ exports.middleware = async function middleware(req, res, msg) {
 						err.redirect = msg.query.redirect || '/';
 						req.satisfied.error = err;
 						req.emit('evn', err);
+						if (req.cookies.user) {
+							fs.readFile(HOME + '/private/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', (err, data) => {
+								var dat = JSON.parse(data || '{"logout": {}}');
+								dat.logout.last = new Date();
+								fs.writeFile(HOME + '/private/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', JSON.stringify(dat, null, 1), module.parent.exports.ignore);
+							});
+						}
+						fs.readFile(HOME + '/private/Accounts/' + query + '/stats.json', (err, data) => {
+							var dat = JSON.parse(data || '{"login": {}}');
+							dat.login.last = new Date();
+							fs.writeFile(HOME + '/private/Accounts/' + query + '/stats.json', JSON.stringify(dat, null, 1), module.parent.exports.ignore);
+						});
 					} else {
 						let err = new Error('Account name or password is invalid.');
 						err.code = 'Failure.';
@@ -188,6 +267,11 @@ exports.middleware = async function middleware(req, res, msg) {
 					}
 				}
 				if (/\/logout/gi.test(msg.pathname) || (msg.query.mode = msg.query.mode || msg.pathname.replace(/^\//, '')) == 'logout') {
+					let query = [req.cookies.user, req.cookies.pass].filter(i => i);
+					if (query.length === 1) {
+						query.push('none');
+					}
+					query = query.join('@');
 					let cookie = req.cookiearr.concat([]);
 					cookie.push(`user=; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
 					cookie.push(`pass=; HttpOnly ; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
@@ -197,6 +281,11 @@ exports.middleware = async function middleware(req, res, msg) {
 						err = new Error('Successful logout.');
 						err.code = 'Success.';
 						err.color = 'green';
+						fs.readFile(HOME + '/private/Accounts/' + query + '/stats.json', (err, data) => {
+							var dat = JSON.parse(data || '{"logout": {}}');
+							dat.logout.last = new Date();
+							fs.writeFile(HOME + '/private/Accounts/' + query + '/stats.json', JSON.stringify(dat, null, 1), module.parent.exports.ignore);
+						});
 					} else {
 						err = new Error('Unsuccessful logout.');
 						err.code = 'Failure.';

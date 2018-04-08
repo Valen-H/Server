@@ -10,18 +10,25 @@ exports.middleware = function middleware(req, res, msg) {
 		fs.stat(PUBLIC + msg.pathname, (err, stat) => {
 			if (!err && stat.isFile() && !msg.pathname.includes('-d-') && !msg.filename.startsWith('.no')) {
 				fs.readFile(PUBLIC + msg.pathname, (err, data) => {
-					var mimes = {
+					var mimes = exports.mimes = {
 						bin: 'application/octet-stream',
 						htm: 'text/html',
  					   html: 'text/html',
+ 					   php: 'text/html',
+ 					   xml: 'text/xml',
 	   				 txt: 'text/plain',
+	   				 log: 'text/plain',
    					 css: 'text/css',
  	 				  gif: 'image/gif',
    					 jpg: 'image/jpeg',
    					 jpeg: 'image/jpeg',
+   					 mp3: 'audio/mpeg',
+   					 mp4: 'video/mp4',
   					  png: 'image/png',
+  					  bmp: 'image/bitmap',
    					 svg: 'image/svg+xml',
  	 				  js: 'application/javascript',
+ 	 				  json: 'application/json',
  	 				  ico: 'image/x-icon'
 					};
 					if (err) {
@@ -64,7 +71,7 @@ exports.middleware = function middleware(req, res, msg) {
 								res.end(data.toString().replace(/<&(.|\n)*?&>/gm, mt => {
 									try {
 										return eval("'use strict';\n" + mt.replace(/[<>&]/g, ''));
-									} catch(err) {
+									} catch (err) {
 										return err;
 									}
 								}));
@@ -90,7 +97,7 @@ exports.middleware = function middleware(req, res, msg) {
 											res.end(data.toString().replace(/<&(.|\n)*?&>/gm, mt => {
 												try {
 													return eval("'use strict';\n" + mt.replace(/[<>&]/g, ''));
-												} catch(err) {
+												} catch (err) {
 													return err;
 												}
 											}));
