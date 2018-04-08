@@ -5,7 +5,9 @@ fs = exports.fs = require('fs-extra'),
 event = exports.error = require('./event.js'),
 readline = exports.readline = require('readline'),
 string_decoder = exports.string_decoder = require('string_decoder'),
-querystring = exports.querystring = require('querystring');
+querystring = exports.querystring = require('querystring'),
+child_process = exports.child_process = require('child_process'),
+chalk = exports.chalk = require('chalk');
 
 //----- TAKEN FROM nodemodule PROJECT
 Array.prototype.inherit = Array.prototype.inh = function(array) {
@@ -55,20 +57,17 @@ if (!fs.readdirSync(HOME + '/middlewares').length) {
 
 var loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares() {
 	middlewares = [];
-	
 	fs.readdirSync(HOME + '/middlewares').flt().filter(mwar => mwar.endsWith('.js') && !mwar.startsWith('d-') && (typeof WARES === 'symbol' || WARES.includes(mwar.replace(/\.js$/, '')))).flt().forEach(mwar => {
 		try {
 			delete require.cache[require.resolve(HOME + '/middlewares/' + mwar)];
 			middlewares.push(require(HOME + '/middlewares/' + mwar) || 'null');
 		} catch(err) {
-			console.error(err);
+			console.error(chalk`{dim.bgRed ${err}}`);
 		}
 	});
-	
 	do {
 		imid = middlewares.filter(mw => mw && mw.middleware).flt().concat([]);
 		midnames = [];
-		
 		middlewares.flt().forEach((mwar, ind) => {
 			var apr = ind;
 			midnames.push(mwar.name);
@@ -85,8 +84,9 @@ var loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares()
 	} while (imid.some((i, ind) => i.name != middlewares[ind].name))
 	fs.writeFileSync(HOME + '/middlewares/order.json', JSON.stringify(middlewares.flt().map(mwar => mwar.name).join('>')));
 	midnames = midnames.flt();
-	console.info('Middlewares reloaded...');
+	console.info(chalk`{grey Middlewares reloaded...}`);
 };
+
 loadMiddlewares();
 
 const server = exports.server = http.createServer((req, res) => {
@@ -120,34 +120,77 @@ const server = exports.server = http.createServer((req, res) => {
 		}
 	}, TIME, req, res, msg);
 	req.middle = 0;
-	try {
-		req.pass = function(res, msg) {
+	req.pass = function(res, msg) {
+		try {
 			if (middlewares[this.middle + 1]) middlewares[++this.middle].middleware(req, res, msg);
-		};
-		middlewares[0].middleware(req, res, msg);
-	} catch (err) {
-		req.satisfied.error = err;
-		event(req, res, msg);
-	}
+		} catch(err) {
+			console.error(chalk`{dim.red ${err}}`);
+			req.satisfied.error = err;
+			req.emit('err', err);
+		}
+	};
+	middlewares[0].middleware(req, res, msg);
 }).listen(PORT, ignore).on('error', console.error).on('connect', (req, socket, head) => {
 	console.log(`${socket.remoteAddress} Connected.`);
 }).once('listening', () => {
 	fs.writeFile(HOME + '/private/up.txt', new Date(), ignore);
-}).on('listening', () => console.log(`Server bound to port ${PORT}`));
+}).on('listening', () => console.log(chalk`Server bound to port {greenBright ${PORT}}`));
 
-const rl = readline.createInterface({input: process.stdin, output: process.stdout});
+const rl = exports.rl = readline.createInterface({input: process.stdin, output: process.stdout});
 rl.on('line', line => {
-	if (/^(re)?load$/i.test(line)) {
+	if (/^((re)?load|rel)$/i.test(line)) {
 		loadMiddlewares();
-	} else if (/^exit$/i.test(line)) {
-		rl.close();
-	} else if (/^(stop|close)$/i.test(line)) {
+	} else if (/^((re)?start|res)$/i.test(line)) {
 		server.close();
-	} else if (/^quit$/i.test(line)) {
+		rl.close();
+		delete require.cache[require.resolve(module.filename)];
+		with (global) {
+			exports = require(module.filename);
+		}
+	} else if (/^exi?t?$/i.test(line)) {
+		rl.close();
+	} else if (/^(stop|close|cls)$/i.test(line)) {
+		server.close();
+	} else if (/^q(ui)?t$/i.test(line)) {
 		process.exit();
 	} else if (/^clea[nr]$/i.test(line)) {
 		console.clear();
+	} else if (/^# /i.test(line)) {
+		const proc = child_process.spawn(line.split(' ')[1], line.split(' ').slice(2).concat(line.split(' ')[1] == 'ls' ? ['--color=auto'] : []), {
+			cwd: process.cwd(),
+			silent: true,
+			detached: false,
+			/*gid: process.getgid(),
+			uid: process.getuid(),*/
+			shell: true,
+			stdio: 'inherit'
+		});
+		/*proc.stdout.on('data', data => {
+			console.log(`stdout: ${data}`);
+		});
+		proc.stderr.on('data', data => {
+			console.log(`stderr: ${data}`);
+		});*/
+		proc.on('error', console.error);
+		proc.on('close', code => {
+			if (code) {
+				code = chalk`{red ${code}}`;
+			} else {
+				code = chalk`{cyan ${code}}`;
+			}
+			console.log(chalk`{grey.dim.bgYellow.bold child process exited with code ${code}.}`);
+			rl.resume();
+		});
+		rl.pause();
 	} else {
-		console.log(eval(line));
+		try {
+			console.log(eval(line));
+		} catch(err) {
+			console.error(err);
+		}
 	}
+});
+
+process.on('unhandledRejection', err => {
+	console.warn(chalk`{dim.grey ${err}}`);
 });

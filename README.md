@@ -15,7 +15,7 @@
   * **time** -> Default timeout for incomplete requests, redirections and other timing functions.  
   
 ## Builtins  
-  * **command.js** -> Contains commands which can be executed by respective url, like : `http://localhost:8080/close?auth=admin:root` and `http://localhost:port/?login=admin:root&from=reg`, this middleware controls a `private/Accounts` folder with registered server accounts to be controlled by `register=account:password, unregister=account:password, login=account:password, logout (affects currently loged-in account)` commands in that order.  
+  * **command.js** -> Contains commands which can be executed by respective url, like : `http://localhost:8080/close?auth=admin:root` and `http://localhost:port/?login=admin:root&from=reg`, this middleware controls a `private/Accounts` folder with registered server accounts to be controlled by POST `register=account:password, unregister=account:password, login=account:password, logout (affects currently loged-in account)` commands in that order.  
   * **fix.js** -> Url autocorrection utility, e.g: suppose our server has a file called `file.htm` but the user requests for `FILE.html`, the server assumes and corrects the url as long as request content has not already been served.  
   * **static.js** -> Serves content under `/public` folder directly to the user. If user requests for a directory and that directory contains an index page (whose name is designated by `process.env.index` which defaults at `index` and applies for `.htm|.html|.js` filetypes), then that page is server instead of directory index list as long as that directory does not contain a `.noind` file and request content is not already served.  
   * **directory.js** -> Lists all files of a directory and prints on the `builtin/directory.html` page (by replacing `&&list&&` with the list and `&&dir&&` in the template with the directory path) as long as the directory does not contain a `.nodir` file and request content has not already been served.  
@@ -24,12 +24,14 @@
 > All middlewares whose names start with `d-` have themselves excluded from the middleware list.  
   
 ## Command-Line  
-  * **reload** -> Forces middlewares to reload.  
-  * **exit** -> Close commandline.  
-  * **stop|close** -> Close server.  
-  * **quit** -> Close process.  
+  * **reload|rel|load** -> Forces middlewares to reload.  
+  * **start|restart|res** -> Force whole-server restart.  
+  * **exit|exi|ex** -> Close commandline.  
+  * **stop|close|cls** -> Close server.  
+  * **quit|qt** -> Close process.  
   * **clear|clean** -> Clear console.  
-  * *Everything else gets evaluated by `eval`*  
+  * **# *command*** -> executes local commands.  
+  * *Everything else gets evaluated with `eval`*  
   
 ## Features  
   * Files/Folders with names containing `-d-` (plus its subfolders) are excluded from directory indexing and static serving.  
@@ -44,7 +46,14 @@
     exports.after = ['command'];
     exports.before = ['end'];
     exports.middleware = function middleware(request, response, message) {
-    	request.pass(response, message);
+    	if (error) {
+    		req.satisfied.error = error;
+    		req.emit('err', error);
+    	} else {
+    		request.satisfied.main = true;
+    		response.write('');
+    		request.pass(response, message);
+    	}
     	return message.satisfied;
     };
     ```  
