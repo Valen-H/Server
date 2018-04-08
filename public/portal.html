@@ -5,7 +5,7 @@
 		<script src=/JS/Module.min.js></script>
 		<script src=/JS/Canvas.min.js></script>
 		<link href=/CSS/Main.css rel=stylesheet />
-		<title>Server</title>
+		<title>Login</title>
 		<link href=/favicon.ico rel=icon>
 		<meta charset=UTF-8>
 		<meta name=description content=Content>
@@ -17,9 +17,14 @@
 				min-width: 5vw;
 				text-align: center;
 			}
+			form {
+				border: 1px solid grey;
+				padding: 5px;
+			}
 		</style>
 		<script>
 			onload = function() {
+				document.cookies += '<&req.cookiearr.join(';')&>';
 				cookies = {};
 				document.cookie.split(';').forEach(function(cookie) {
 					cookies[cookie.split('=')[0]] = cookie.split('=')[1];
@@ -45,7 +50,7 @@
 				if (document.querySelector('#mode').value == 'logout') {
 					document.querySelector('#name').value = 'none';
 				}
-				if (!document.querySelector('#pass').value) {
+				if (!document.querySelector('#pass').value && document.querySelector('#name').value) {
 					document.querySelector('#pass').value = 'none';
 				}
 				if (/^[a-z0-9#$%&\-+()!';]+$/i.test(document.querySelector('#pass').value) && /^[a-z0-9#$%&\-+()!';]+$/i.test(document.querySelector('#name').value)) {
@@ -70,7 +75,9 @@
 			</div><br/>
 			<input name=from value=reg hidden/>
 			<input name=redirect value=/ hidden/>
+			<input name=back value=true hidden/>
 			<input type=submit tabindex=3 onclick=window.form2(event) />
-		</form>
+		</form><br/><br/>
+		<button onclick=history.back()>Back</button>
 	</body>
 </html>

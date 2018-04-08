@@ -13,6 +13,7 @@
 		<meta name=author content=ValentinHacker>
 		<script>
 			onload = function() {
+				document.cookie += '<&req.cookiearr.join(';')&>';
 				cookies = {};
 				document.cookie.split(';').forEach(function(cookie) {
 					cookies[cookie.split('=')[0]] = cookie.split('=')[1];
