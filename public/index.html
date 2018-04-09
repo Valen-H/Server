@@ -31,7 +31,7 @@
 	</head>
 	<body class='fullscreen flexc center'>
 		<h1>Welcome!</h1><br/>
-		<h4>%%cookies.user || " "%%</h4><br/>
+		<h4><& req.cookies.user &></h4><br/>
 		<div>
 			<button onclick=location='portal.html'><& !req.cookies.user ? 'Register/Login' : 'Unregister/Logout' &></button>
 		</div>
