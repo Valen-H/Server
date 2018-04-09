@@ -105,7 +105,7 @@ exports.middleware = function middleware(req, res, msg) {
 	return req.satisfied;
 };
 
-var dir = async function dir(dr) {
+var dir = exports.dir = async function dir(dr) {
 	return new Promise((rsl, rjc) => {
 		fs.readdir(dr, (err, files) => {
 			if (err) rjc(err);

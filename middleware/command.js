@@ -39,18 +39,18 @@ parent.rl.on('line', line => {
 			});
 		});
 	} else if (/^reg(ist(er)?)? .+$/i.test(line)) {
-		fs.readdir(HOME + '/private/Accounts', (err, files) => {
+		fs.readdir(HOME + '/private/Accounts', async (err, files) => {
 			var user = line.split(' ').slice(1).join(' ');
 			if (!user.includes('@')) {
 				user += '@none';
 			}
-			if (files.includes(user)) {
+			if (files.includes(user) || files.some(file => file.split('@')[0] == user.split('@')[0])) {
 				console.error(chalk`{magenta.italic User Exists.}`);
 				return;
 			}
 			fs.ensureFile(HOME + '/private/Accounts/' + user + '/stats.json', err => {
 				if (err) {
-					console.error(chalk`{magenta.italic ${err || 'No account password given.'}}`);
+					console.error(chalk`{magenta.italic ${err}}`);
 				} else {
 					fs.writeFile(HOME + '/private/Accounts/' + user + '/stats.json', JSON.stringify({
 						registration: {
@@ -76,7 +76,7 @@ parent.rl.on('line', line => {
 });
 
 exports.middleware = async function middleware(req, res, msg) {
-	res.setHeader('Set-Cookie', req.headers.cookie || []);
+	res.setHeader('Set-Cookie', req.cookiearr || []);
 	if (exports.store.administration &&  req.cookies.user == parent.auth.split(':')[0]) {
 		if (/^\/close\/?$/i.test(msg.pathname)) {
 			let err = new Error('Server Closed.');
@@ -280,6 +280,7 @@ exports.middleware = async function middleware(req, res, msg) {
 					let cookie = req.cookiearr.concat([]);
 					cookie.push(`user=; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
 					cookie.push(`pass=; HttpOnly ; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
+					res.removeHeader('Set-Cookie');
 					res.setHeader('Set-Cookie', cookie);
 					var err;
 					if (req.cookiearr.length) {
