@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta name=viewport content=width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no>
-		<script src=/JS/Module.min.js></script>
+		<script src=/JS/Module.js></script>
 		<script src=/JS/Canvas.min.js></script>
 		<link href=/CSS/Main.css rel=stylesheet />
 		<title>Server</title>
@@ -11,9 +11,11 @@
 		<meta name=description content=Content>
 		<meta name=keywords content=HTML,CSS,JS>
 		<meta name=author content=ValentinHacker>
+		<script src=/JS/socket.io.js></script>
 		<script>
+			auto = 'strict';
 			onload = function() {
-				document.cookie += '<&req.cookiearr.join(';')&>';
+				document.cookie += ';<& req.cookiearr.join(';') &>';
 				cookies = {};
 				document.cookie.split(';').forEach(function(cookie) {
 					cookies[cookie.split('=')[0]] = cookie.split('=')[1];
@@ -26,6 +28,8 @@
 				} else {
 					admin = false;
 				}
+				var socket = io();
+				socket.send('visitor!');
 			};
 		</script>
 	</head>
@@ -37,3 +41,29 @@
 		</div>
 	</body>
 </html>
+<!--.on('connection', soc => {
+	soc.dec = new string_decoder.StringDecoder();
+	soc.data = '';
+	soc.on('data', data => {
+		soc.data += soc.dec.write(data);
+		headers = reqpar(soc.data);
+		if (headers.Upgrade == 'websocket') {
+			var reply = new Object(headers);
+			reply['Sec-WebSocket-Accept'] = Buffer.from(sha1(reply['Sec-WebSocket-Key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')).toString('base64');
+			var rep = [];
+			for (it in reply) {
+				rep.add(it + ': ' + reply[it]);
+			}
+			rep = rep.join('\r\n');
+			rep += '\r\n\r\n';
+			console.log(soc.data, headers, rep);
+			if (headers['Sec-WebSocket-Key']) {
+				soc.write(rep);
+				soc.write('hi');
+			}
+		}
+	});
+	soc.once('end', () => {
+		soc.data += soc.dec.end();
+	});
+}-->
