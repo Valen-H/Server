@@ -6,20 +6,26 @@
 */
 
 const fs = module.parent.exports.fs,
+chalk = module.parent.exports.chalk,
+parent = module.parent.exports,
 url = module.parent.exports.url;
+const STORE = url.parse(module.filename).directory + '/midstore/' + url.parse(module.filename).filename + '.json';
 
-exports.after = ['command'];
+exports.after = ['command', 'security'];
 exports.before = ['static', 'directory', 'end'];
 exports.name = 'fix';
 
+exports.fix = {
+	strength: 'extreme' || 'extended' || 'basic'
+};
+
 try {
-	fs.ensureFileSync(`${module.filename.replace(/\.js$/, '')}.json`);
-	exports.fix = JSON.parse(fs.readFileSync(`${module.filename.replace(/\.js$/, '')}.json`) || '{}');
-} catch(err) {
-	exports.fix = {
-		strength: 'extreme' || 'extended' || 'basic'
-	};
-	fs.writeFile(`${module.filename.replace(/\.js$/, '')}.json`, JSON.stringify(exports.fix), module.parent.exports.ignore);
+	fs.ensureFileSync(STORE);
+	exports.store = JSON.parse(fs.readFileSync(STORE));
+} catch (err) {
+	fs.writeFile(STORE, JSON.stringify(exports.store || '{}'), err => {
+		if (!err) console.info(chalk`{green ${module.filename} Initialized.}`);
+	});
 }
 
 exports.middleware = function middleware(req, res, msg) {

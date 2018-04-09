@@ -1,14 +1,33 @@
 const fs = module.parent.exports.fs,
-PUBLIC = module.parent.exports.home + '/public';
+parent = module.parent.exports,
+chalk = module.parent.exports.chalk,
+PUBLIC = module.parent.exports.home + '/public',
+url = module.parent.exports.url;
+const STORE = url.parse(module.filename).directory + '/midstore/' + url.parse(module.filename).filename + '.json';
 
-exports.after = ['command', 'fix'];
+exports.after = ['command', 'fix', 'security'];
 exports.before = ['directory', 'end'];
 exports.name = 'static';
+
+exports.store = {
+	exclusions: []
+};
+
+try {
+	fs.ensureFileSync(STORE);
+	exports.store = JSON.parse(fs.readFileSync(STORE));
+} catch (err) {
+	fs.writeFile(STORE, JSON.stringify(exports.store || '{}'), err => {
+		if (!err) console.info(chalk`{green ${module.filename} Initialized.}`);
+	});
+}
+
+fs.ensureFileSync('builtin/.noind');
 
 exports.middleware = function middleware(req, res, msg) {
 	if (!req.satisfied.main && !req.satisfied.error) {
 		fs.stat(PUBLIC + msg.pathname, (err, stat) => {
-			if (!err && stat.isFile() && !msg.pathname.includes('-d-') && !msg.filename.startsWith('.no')) {
+			if (!err && stat.isFile() && !msg.pathname.includes('-d-') && !msg.filename.startsWith('.no') && !exports.store.exclusions.some(exc => msg.pathname.startsWith(exc))) {
 				fs.createReadStream(PUBLIC + msg.pathname).pipe(res);
 				req.satisfied.main = true;
 			} else if (err || msg.pathname.includes('-d-') || msg.filename.startsWith('.no')) {

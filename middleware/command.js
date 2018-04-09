@@ -2,24 +2,29 @@ const fs = module.parent.exports.fs,
 querystring = module.parent.exports.querystring,
 HOME = module.parent.exports.home,
 chalk = module.parent.exports.chalk,
-parent = module.parent.exports;
+parent = module.parent.exports,
+url = module.parent.exports.url;
+const STORE = url.parse(module.filename).directory + '/midstore/' + url.parse(module.filename).filename + '.json';
 
-exports.after = [];
+exports.after = ['security'];
 exports.before = ['fix', 'directory', 'static', 'end'];
 exports.name = 'command';
+var store = exports.store = {
+	accounting: true,
+	administration: true,
+	time: 0
+};
 
 try {
-	fs.ensureDirSync(HOME + '/private/Accounts/' + module.parent.exports.auth.replace(':', '@'));
-	fs.ensureFileSync(`${module.filename.replace(/\.js$/, '')}.json`);
-	exports.command = JSON.parse(fs.readFileSync(`${module.filename.replace(/\.js$/, '')}.json`) || '{}');
-} catch(err) {
-	exports.command = {
-		accounting: true,
-		administration: true,
-		time: 0
-	};
-	fs.writeFile(`${module.filename.replace(/\.js$/, '')}.json`, JSON.stringify(exports.command), module.parent.exports.ignore);
+	fs.ensureFileSync(STORE);
+	exports.store = JSON.parse(fs.readFileSync(STORE));
+} catch (err) {
+	fs.writeFile(STORE, JSON.stringify(exports.store || '{}'), err => {
+		if (!err) console.info(chalk`{green ${module.filename} Initialized.}`);
+	});
 }
+
+fs.ensureDirSync(HOME + '/private/Accounts/' + parent.auth.replace(':', '@'));
 
 parent.rl.on('line', line => {
 	if (/^ban .+$/i.test(line)) {
@@ -72,7 +77,7 @@ parent.rl.on('line', line => {
 
 exports.middleware = async function middleware(req, res, msg) {
 	res.setHeader('Set-Cookie', req.headers.cookie || []);
-	if (exports.command.administration && (msg.query.auth == module.parent.exports.auth || req.cookies.user == module.parent.exports.auth.split(':')[0])) {
+	if (exports.store.administration &&  req.cookies.user == parent.auth.split(':')[0]) {
 		if (/^\/close\/?$/i.test(msg.pathname)) {
 			let err = new Error('Server Closed.');
 			err.code = 'ESERCLS';
@@ -110,7 +115,7 @@ exports.middleware = async function middleware(req, res, msg) {
 			err.code = 'ESERRLD';
 			req.satisfied.event = err;
 			req.emit('evn', err);
-			setTimeout(module.parent.exports.loadMiddlewares, exports.command.time || module.parent.exports.time || 5000);
+			setTimeout(parent.loadMiddlewares, exports.store.time || parent.time || 5000);
 		}
 		if (/^\/ban\/?$/i.test(msg.pathname) && msg.query.user) {
 			var evn = new Error('Account Banned.');
@@ -138,7 +143,7 @@ exports.middleware = async function middleware(req, res, msg) {
 			});
 		}
 	}
-	if (req.method === 'POST' && exports.command.accounting && (/^\/?((un)?register|log(in|out))?$/i.test(msg.pathname) || /[?&](log(in|out)|(un)?register)=.+/gi.test(msg.querystring))) {
+	if (req.method === 'POST' && exports.store.accounting && (/^\/?((un)?register|log(in|out))?$/i.test(msg.pathname) || /[?&](log(in|out)|(un)?register)=.+/gi.test(msg.querystring))) {
 		req.once('end', () => {
 			msg.query = querystring.parse(req.data);
 			msg.querystring = req.data;
@@ -301,6 +306,6 @@ exports.middleware = async function middleware(req, res, msg) {
 	} else if (!req.satisfied.event) {
 		req.pass(res, msg);
 	}
-	fs.writeFile(`${module.filename.replace(/\.js$/, '')}.json`, JSON.stringify(exports.command, null, 1), module.parent.exports.ignore);
+	fs.writeFile(STORE, JSON.stringify(exports.store), parent.ignore);
 	return req.satisfied;
 };
