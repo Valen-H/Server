@@ -44,8 +44,8 @@ TIME = exports.time = (process.env.time || process.env.npm_config_time || 7000) 
 AUTH = exports.auth = process.env.auth || process.env.npm_config_auth || 'admin:root',
 ignore = exports.ignore = () => {};
 
-var midnames = [];
-var middlewares = [], imid;
+var midnames = exports.midnames = [];
+var middlewares = exports.middlewares = [], imid;
 
 fs.ensureDirSync('middleware');
 fs.ensureDirSync(HOME + '/middlewares');
@@ -127,7 +127,7 @@ var loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares()
 			delete require.cache[require.resolve(HOME + '/middlewares/' + mwar)];
 			middlewares.push(require(HOME + '/middlewares/' + mwar) || 'null');
 		} catch (err) {
-			console.error(chalk`{dim.bgRed ${err}}`);
+			console.error(chalk`{dim.bgRed ${mwar + ' : ' + err}}`);
 		}
 	});
 	do {
@@ -222,6 +222,7 @@ var server = exports.server = http.createServer((req, res) => {
 	console.log('Server Closed.');
 });
 
+//----- DANGEROUS
 process.removeAllListeners();
 process.on('unhandledRejection', err => {
 	console.warn(chalk`{dim.grey ${err}}`);

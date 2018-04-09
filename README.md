@@ -1,12 +1,13 @@
 ## Folders/Files  
-  * **middlewares/** -> Contains all active middlewares plus a runtime-made `order.json` file that designates the middleware execution order and prevents middleware copying from `middleware/`, if empty (initially) the server will auto-copy the middlewares from the folder `middleware`.  
+  * **middlewares/** -> Contains all active middlewares plus a runtime-made **order.json** file that designates the middleware execution order and prevents middleware copying from `middleware/`, if empty (initially) the server will auto-copy the middlewares from the folder `middleware`.  
+  * **middlewares/midstore/** -> This is where middlewares keep their config data.  
   * **middleware/** -> Contains all builtin middlewares.  
   * **builtin/** -> contains all builtin html templates.  
   * **public/** -> Contains all server pages.  
   * **private/** -> Contains all server-hidden data such as `Accounts/` and logs.  
   * **lib/** -> Contains all modules.  
   * **private/up.txt** -> Server startup Date.  
-  * **private/Accounts/aa@bb/stat.json** -> Account data.  
+  * **private/Accounts/** -> Account data.  
   
 ## Environment  
   * **port** -> Server port. Defaults to `8080`.  
@@ -18,9 +19,9 @@
   
 ## Builtins  
   * **command.js** -> Contains commands which can be executed by respective url or console command, like :  
-    * `http://localhost:8080/close?auth=admin:root`  
-    * `http://localhost:8080/reload?auth=admin:root`  
-    * `http://localhost:8080/restart?auth=admin:root`  
+    * `http://localhost:8080/close`  
+    * `http://localhost:8080/reload`  
+    * `http://localhost:8080/restart`  
     * `http://localhost:port/?login=admin:root&from=reg`  
   this middleware controls a `private/Accounts` folder with registered server accounts to be controlled by ***POST*** `register=account:password, unregister=account:password, login=account:password, logout=true (affects currently loged-in account)` or `mode=register|login|logout|unregister, user=user, pass=password` requests in that order. It automatically generates a `middleware/command.json` file for further setting (as other modules), the following all default to `true` :  
     * **administration** -> Whether administration GET commands will be enabled (`close?auth=admin:pass, restart?auth=admin:pass, reload?auth=admin:pass, eval?auth=admin:pass, ban?auth=admin:pass&user=name`). `auth` parameter is optional for logged-in admin.  
@@ -29,14 +30,15 @@
     * **extreme** -> Corrects filenames, direnames and upper/super-dirnames with assumptions.  
     * **extended** -> Corrects filenames, direnames with assumptions.  
     * **basic** -> Corrects filenames and direnames slightly  
-  * **template-static** -> Similar to `static` but also translates `<& code &>` with its evaluated output.  
-  * **d-static.js** -> Disabled by default (`d-`) due to `template-static` usage. Serves content under `/public` folder directly to the user. If user requests for a directory and that directory contains an index page (whose name is designated by `process.env.index` which defaults at `index` and applies for `.htm|.html|.js` filetypes), then that page is server instead of directory index list as long as that directory does not contain a `.noind` file and request content is not already served.  
+  * **template-static** -> Similar to `static` but also translates `<& code &>` with its evaluated output unless a `.notmp` file is specified.  
+  * **d-static.js** -> Disabled by default (`d-`) due to `template-static` usage. Serves content under `/public` folder directly to the user. If user requests for a directory and that directory contains an index page (whose name is designated by `process.env.index` which defaults at `index` and applies for `.htm|.html|.js` filetypes), then that page is server instead of directory index list as long as that directory does not contain a `.noind` file and request content is not already served (same functionality applies for all `no` files).  
   * **directory.js** -> Lists all files of a directory and prints on the `builtin/directory.html` page (by replacing `&&list&&` with the list and `&&dir&&` in the template with the directory path) as long as the directory does not contain a `.nodir` file and request content has not already been served.  
   * **end.js** -> It makes sure that all unfinished responses are terminated.  
   
 > All middlewares whose names start with `d-` will have themselves excluded from the middleware list.  
   
 ## Command-Line  
+> `a|b` -> a or b, `[a]b` -> b or ab  
   * **reload|rel|load** -> Forces middlewares to reload.  
   * **start|restart|res** -> Force whole-server restart.  
   * **exit|exi|ex** -> Close commandline.  
