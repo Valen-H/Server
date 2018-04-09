@@ -8,7 +8,9 @@ readline = exports.readline = require('readline'),
 string_decoder = exports.string_decoder = require('string_decoder'),
 querystring = exports.querystring = require('querystring'),
 child_process = exports.child_process = require('child_process'),
-chalk = exports.chalk = require('chalk');
+chalk = exports.chalk = require('chalk'),
+crypto = exports.crypto = require('crypto'),
+socket = exports.socket = require('socket.io');
 
 //----- TAKEN FROM nodemodule PROJECT
 Array.prototype.inherit = Array.prototype.inh = function(array) {
@@ -34,6 +36,17 @@ Array.prototype.add = function add(elm) {
 	}
 	return this;
 };
+Array.prototype.rmv = String.prototype.rmv = function (elm, n) {
+	var arr = this.split("");
+	if (typeof elm != "number" && this.indexOf(elm) < 0) {
+		return this;
+	}
+	arr.splice(typeof elm == "number" && !n ? elm : this.indexOf(elm), 1);
+	if (this instanceof String) {
+		return arr.join("");
+	}
+	return arr;
+};
 //-----
 
 const PORT = exports.port = process.env.port || process.env.npm_config_port || 8080,
@@ -45,7 +58,8 @@ AUTH = exports.auth = process.env.auth || process.env.npm_config_auth || 'admin:
 ignore = exports.ignore = () => {};
 
 var midnames = exports.midnames = [];
-var middlewares = exports.middlewares = [], imid;
+var middlewares = exports.middlewares = [], imid,
+middlewaresO = exports.middlewaresO = {};
 
 fs.ensureDirSync('middleware');
 fs.ensureDirSync(HOME + '/middlewares');
@@ -57,9 +71,13 @@ if (!fs.readdirSync(HOME + '/middlewares').length) {
 }
 
 var rl = exports.rl = readline.createInterface({input: process.stdin, output: process.stdout});
-rl.comm = false;
+rl.comm = rl.exe = false;
 rl.on('line', exports.list = line => {
-	if (rl.comm) line = '# ' + line;
+	if (rl.comm) {
+		line = '# ' + line;
+	} else if (rl.exe) {
+		line = 'e ' + line;
+	}
 	if (/^((re)?load|rel)$/i.test(line)) {
 		loadMiddlewares();
 	} else if (/^((re)?start|res)$/i.test(line)) {
@@ -81,8 +99,14 @@ rl.on('line', exports.list = line => {
 		console.info(chalk`{dim.yellow Shell session engaged.}`);
 	} else if (/^# ?#{1,2}$/i.test(line)) {
 		rl.comm = false;
-		console.info(chalk`{yellow Shell session disengaged.}`);
-	} else if (/^# .(?!#)/i.test(line)) {
+		console.info(chalk`{dim.yellow Shell session disengaged.}`);
+	} else if (/^ev?a?l?$/i.test(line)) {
+		rl.exe = true;
+		console.info(chalk`{dim.yellow REPL session engaged.}`);
+	} else if (/^ev?a?l? ?(ev?a?l?){1,2}$/i.test(line)) {
+		rl.exe = false;
+		console.info(chalk`{yellow REPL session disengaged.}`);
+	} else if (/^# .(?!#{1,2})/i.test(line)) {
 		const proc = child_process.spawn(line.split(' ')[1], line.split(' ').slice(2).concat(line.split(' ')[1] == 'ls' ? ['--color=auto'] : []), {
 			cwd: process.cwd(),
 			silent: true,
@@ -101,7 +125,7 @@ rl.on('line', exports.list = line => {
 			rl.resume();
 		});
 		rl.pause();
-	} else if (/^ev?a?l? /i.test(line)) {
+	} else if (/^ev?a?l? ./i.test(line)) {
 		line = line.replace(/^ev?a?l? /i, '');
 		try {
 			console.log(eval(line));
@@ -147,6 +171,7 @@ var loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares()
 		});
 		middlewares = middlewares.filter(mw => mw && mw.middleware).flt().sort((m1, m2) => m1.priority - m2.priority);
 	} while (imid.some((i, ind) => i.name != middlewares[ind].name))
+	middlewares.forEach(md => middlewaresO[md.name] = md);
 	fs.writeFileSync(HOME + '/middlewares/order.json', JSON.stringify(middlewares.flt().map(mwar => mwar.name).join('>')));
 	midnames = midnames.flt();
 	console.info(chalk`{grey Middlewares reloaded...}`);
@@ -221,6 +246,26 @@ var server = exports.server = http.createServer((req, res) => {
 }).on('listening', () => console.log(chalk`Server bound to port {greenBright ${PORT}}`)).on('close', () => {
 	console.log('Server Closed.');
 });
+
+var io = exports.io = socket(server, {
+	pingTimeout: 30000,
+	pingInterval: 5000,
+	cookie: true
+});
+
+/*const reqpar = exports.reqpar = function(data, raw = true) {
+	var headers = {};
+	data = data.split('\r\n').filter(i => i && i.includes(':')).flt();
+	data.forEach(dat => {
+		headers[raw ? dat.split(':')[0] : dat.split(':')[0].replace(/-/g, '').replace(/^./, c => c.toLowerCase())] = dat.split(':').slice(1).join(':').trim();
+	});
+	return headers;
+},
+sha1 = exports.sha1 = function(val) {
+	var shasum = crypto.createHash('sha1');
+	shasum.update(val);
+	return shasum.digest('hex');
+};*/
 
 //----- DANGEROUS
 process.removeAllListeners();

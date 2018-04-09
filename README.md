@@ -18,6 +18,7 @@
   * **time** -> Default timeout for incomplete requests, redirections and other timing functions. Defaults to `7000`.    
   
 ## Builtins  
+  * **security.js** -> POST DOS protection and other security stuff.  
   * **command.js** -> Contains commands which can be executed by respective url or console command, like :  
     * `http://localhost:8080/close`  
     * `http://localhost:8080/reload`  
@@ -47,6 +48,7 @@
   * **clear|clean** -> Clear console.  
   * **# *command*** -> Executes local commands.  
   * **#** -> Toggles Shell.  
+  * **e** -> Toggles REPL.  
   * **eval *expression*** -> Evaluate expression with `eval`.  
   * ***command.js***  
     * **reg|regist|register user[@pass]** -> Register new user.  
