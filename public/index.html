@@ -2,68 +2,37 @@
 <html>
 	<head>
 		<meta name=viewport content=width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no>
+		<script src=/JS/socket.io.js></script>
+		<script src=/JS/socket.js></script>
 		<script src=/JS/Module.js></script>
 		<script src=/JS/Canvas.min.js></script>
 		<link href=/CSS/Main.css rel=stylesheet />
 		<title>Server</title>
-		<link href=/favicon.ico rel=icon>
+		<link rel=icon href=/favicon.png />
 		<meta charset=UTF-8>
 		<meta name=description content=Content>
 		<meta name=keywords content=HTML,CSS,JS>
 		<meta name=author content=ValentinHacker>
-		<script src=/JS/socket.io.js></script>
 		<script>
 			auto = 'strict';
 			onload = function() {
-				document.cookie += ';<& req.cookiearr.join(';') &>';
 				cookies = {};
 				document.cookie.split(';').forEach(function(cookie) {
 					cookies[cookie.split('=')[0]] = cookie.split('=')[1];
 				});
-				act(body, '%');
+				act('div[0]', '%');
 				dbg();
-				mul(body, "background='@radial-gradient(white 5%, lightgrey 80%, grey 110%)'");
-				if ("<& req.cookies.user == module.parent.exports.auth.split(':')[0] &>") {
-					admin = true;
-				} else {
-					admin = false;
-				}
-				var socket = io();
-				socket.send('visitor!');
+				mul('div[0]', "background='@radial-gradient(white 5%, lightgrey 80%, grey 110%)'");
 			};
 		</script>
 	</head>
-	<body class='fullscreen flexc center'>
-		<h1>Welcome!</h1><br/>
-		<h4><& req.cookies.user &></h4><br/>
-		<div>
-			<button onclick=location='portal.html'><& !req.cookies.user ? 'Register/Login' : 'Unregister/Logout' &></button>
+	<body bgcolor=grey class='fullscreen flexc center'>
+		<div class='fullscreen flexc center'>
+			<h1>Welcome!</h1><br/>
+			<h4><& req.cookies.user || ' ' &></h4><br/>
+			<div>
+				<button onclick=location='portal.html'><& !req.cookies.user ? 'Register/Login' : 'Unregister/Logout' &></button>
+			</div>
 		</div>
 	</body>
 </html>
-<!--.on('connection', soc => {
-	soc.dec = new string_decoder.StringDecoder();
-	soc.data = '';
-	soc.on('data', data => {
-		soc.data += soc.dec.write(data);
-		headers = reqpar(soc.data);
-		if (headers.Upgrade == 'websocket') {
-			var reply = new Object(headers);
-			reply['Sec-WebSocket-Accept'] = Buffer.from(sha1(reply['Sec-WebSocket-Key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')).toString('base64');
-			var rep = [];
-			for (it in reply) {
-				rep.add(it + ': ' + reply[it]);
-			}
-			rep = rep.join('\r\n');
-			rep += '\r\n\r\n';
-			console.log(soc.data, headers, rep);
-			if (headers['Sec-WebSocket-Key']) {
-				soc.write(rep);
-				soc.write('hi');
-			}
-		}
-	});
-	soc.once('end', () => {
-		soc.data += soc.dec.end();
-	});
-}-->

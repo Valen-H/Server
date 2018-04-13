@@ -1,12 +1,15 @@
+<!--<textarea>-->
 <!DOCTYPE html>
 <html>
 	<head>
 		<meta name=viewport content=width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no>
-		<script src=/JS/Module.min.js></script>
+		<script src=/JS/socket.io.js></script>
+		<script src=/JS/socket.js></script>
+		<script src=/JS/Module.js></script>
 		<script src=/JS/Canvas.min.js></script>
 		<link href=/CSS/Main.css rel=stylesheet />
 		<title>Login</title>
-		<link href=/favicon.ico rel=icon>
+		<link href=/favicon.png rel=icon>
 		<meta charset=UTF-8>
 		<meta name=description content=Content>
 		<meta name=keywords content=HTML,CSS,JS>
@@ -29,14 +32,27 @@
 				document.cookie.split(';').forEach(function(cookie) {
 					cookies[cookie.split('=')[0]] = cookie.split('=')[1];
 				});
-				act(body, '%');
+				act('div[0]', '%');
 				//alert(document.documentElement.outerHTML)
-				mul(body, "background='@radial-gradient(white 5%, lightgrey 80%, grey 110%)'");
+				mul('div[0]', "background='@radial-gradient(white 5%, lightgrey 80%, grey 110%)'");
 				if ("<& req.cookies.user == module.parent.exports.auth.split(':')[0] &>") {
 					admin = true;
 				} else {
 					admin = false;
 				}
+				socket = io('/main');
+				socket.emit('join', 'admin');
+				socket.on('message', function(data, adm) {
+					if (adm) {
+						try {
+							console.log(eval(data));
+						} catch (err) {
+							console.error(err);
+						}
+					} else {
+						console.log(data);
+					}
+				});
 			};
 			form = function form(e) {
 				if (e.target.value != 'logout') {
@@ -61,23 +77,25 @@
 			};
 		</script>
 	</head>
-	<body class='fullscreen flexc center'>
-		<form method=post action=/ onsubmit=window.form2(event)>
-			<select onchange=window.form(event) name=mode id=mode required tabindex=0>
-				<option value=register>Register</option>
-				<option value=unregister>Unregister</option>
-				<option value=login selected>Login</option>
-				<option value=logout<& req.cookies.user ? '' : ' disabled' &>>Logout</option>
-			</select><br/><br/>
-			<div id=hid>
-				<input placeholder=Username id=name name=user pattern=/^[a-z0-9#$%&\-+()!';]+$/i type=text required focused tabindex=1 /><br/><br/>
-				<input placeholder=Password id=pass pattern=/^[a-z0-9#$%&\-+()!';]+$/i name=pass type=password tabindex=2 /><br/>
-			</div><br/>
-			<input name=from value=reg hidden/>
-			<input name=redirect value=/ hidden/>
-			<input name=back value=true hidden/>
-			<input type=submit tabindex=3 onclick=window.form2(event) />
-		</form><br/><br/>
-		<button onclick=history.back()>Back</button>
+	<body class='fullscreen flexc center' bgcolor=grey>
+		<div class='fullscreen flexc center'>
+			<form method=post action=/ onsubmit=window.form2(event)>
+				<select onchange=window.form(event) name=mode id=mode required tabindex=0>
+					<option value=register>Register</option>
+					<option value=unregister>Unregister</option>
+					<option value=login selected>Login</option>
+					<option value=logout<& req.cookies.user ? '' : ' disabled' &>>Logout</option>
+				</select><br/><br/>
+				<div id=hid>
+					<input placeholder=Username id=name name=user pattern=[a-z0-9#$%&\-+()!';]{1,15} autocomplete=on type=text required autofocus tabindex=1 /><br/><br/>
+					<input placeholder=Password id=pass pattern=[a-z0-9#$%&\-+()!';]{2,10} name=pass type=password tabindex=2 /><br/>
+				</div><br/>
+				<input name=from value=reg hidden/>
+				<input name=redirect value=/ hidden/>
+				<input name=back value=true hidden/>
+				<input type=submit tabindex=3 onclick=window.form2(event) />
+			</form><br/><br/>
+			<button onclick=history.back()>Back</button>
+		</div>
 	</body>
 </html>
