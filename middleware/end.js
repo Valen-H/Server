@@ -1,12 +1,35 @@
+const parent = module.parent.exports,
+fs = parent.fs,
+chalk = parent.chalk,
+PUBLIC = parent.home + '/public',
+PRIVATE = parent.home + '/private',
+url = parent.url,
+BUILTIN = parent.home + '/builtin',
+HOME = parent.home,
+rl = parent.rl,
+STORE = url.parse(module.filename).directory + '/midstore/' + url.parse(module.filename).filename + '.json';
+
 exports.before = [];
-exports.after = ['fix', 'static', 'directory', 'command'];
+exports.after = ['fix', 'static', 'directory', 'command', 'socket', 'security'];
 exports.name = 'end';
+exports.alive = true;
+
+var store = exports.store = {};
+
+try {
+	fs.ensureFileSync(STORE);
+	store = exports.store = JSON.parse(fs.readFileSync(STORE));
+} catch(err) {
+	fs.writeFile(STORE, JSON.stringify(exports.store || '{}'), err => {
+		if (!err) console.info(chalk`{green ${module.filename} Initialized.}`);
+	});
+}
 
 exports.middleware = function middleware(req, res, msg) {
-	if (!req.satisfied.main && !res.finished && !req.satisfied.error) {
+	if (!msg.satisfied.main && !res.finished && !msg.satisfied.error) {
 		res.end();
-		req.satisfied.main = true;
+		msg.satisfied.main = 'end';
 	}
-	req.pass(res, msg);
-	return req.satisfied;
+	msg.pass();
+	return msg.satisfied;
 };

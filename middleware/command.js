@@ -1,24 +1,30 @@
-const fs = module.parent.exports.fs,
-querystring = module.parent.exports.querystring,
-HOME = module.parent.exports.home,
-chalk = module.parent.exports.chalk,
-parent = module.parent.exports,
-url = module.parent.exports.url;
-const STORE = url.parse(module.filename).directory + '/midstore/' + url.parse(module.filename).filename + '.json';
+const parent = module.parent.exports,
+fs = parent.fs,
+chalk = parent.chalk,
+PUBLIC = parent.home + '/public',
+PRIVATE = parent.home + '/private',
+url = parent.url,
+BUILTIN = parent.home + '/builtin',
+HOME = parent.home,
+rl = parent.rl,
+querystring = parent.querystring,
+STORE = url.parse(module.filename).directory + '/midstore/' + url.parse(module.filename).filename + '.json';
 
-exports.after = ['security'];
-exports.before = ['fix', 'directory', 'static', 'end'];
+exports.after = ['security', 'event'];
+exports.before = ['socket', 'fix', 'directory', 'static', 'end'];
 exports.name = 'command';
+exports.alive = true;
+
 var store = exports.store = {
 	accounting: true,
 	administration: true,
-	time: 0
+	time: 4000
 };
 
 try {
 	fs.ensureFileSync(STORE);
-	exports.store = JSON.parse(fs.readFileSync(STORE));
-} catch (err) {
+	store = exports.store = JSON.parse(fs.readFileSync(STORE));
+} catch(err) {
 	fs.writeFile(STORE, JSON.stringify(exports.store || '{}'), err => {
 		if (!err) console.info(chalk`{green ${module.filename} Initialized.}`);
 	});
@@ -26,19 +32,26 @@ try {
 
 fs.ensureDirSync(HOME + '/private/Accounts/' + parent.auth.replace(':', '@'));
 
-parent.rl.on('line', line => {
+rl.count++;
+if (store.administration) parent.rl.on('line', line => {
+	if (rl.block.command || rl.handled) {
+		rl.tick();
+		return;
+	}
 	if (/^ban .+$/i.test(line)) {
+		rl.handled = true;
 		var user = line.split(' ').slice(1).join(' ').split('@')[0];
 		fs.readdir(HOME + '/private/Accounts', (err, files) => {
 			fs.remove(HOME + '/private/Accounts/' + files.filter(file => file.startsWith(user + '@'))[0], err => {
 				if (err || !files.filter(file => file.startsWith(user + '@')).length) {
 					console.error(chalk`{magenta.italic ${err || 'Invalid Username.'}}`);
 				} else {
-					console.info(chalk`User ${user} has been {redBright.bold Banned}.`);
+					console.info(chalk`User '${user}' has been {redBright.bold Banned}.`);
 				}
 			});
 		});
 	} else if (/^reg(ist(er)?)? .+$/i.test(line)) {
+		rl.handled = true;
 		fs.readdir(HOME + '/private/Accounts', async (err, files) => {
 			var user = line.split(' ').slice(1).join(' ');
 			if (!user.includes('@')) {
@@ -63,68 +76,74 @@ parent.rl.on('line', line => {
 							last: null
 						}
 					}), err => {
-						console.info(chalk`User ${user} has been {greenBright.bold Registered}.`);
+						console.info(chalk`User '${user}' has been {greenBright.bold Registered}.`);
 					});
 				}
 			});
 		});
 	} else if (/^(user)?list$/i.test(line)) {
+		rl.handled = true;
 		fs.readdir(HOME + '/private/Accounts', (err, files) => {
 			console.log(chalk`{bold ${files.join('\n')}}`);
 		});
 	}
+	rl.tick();
 });
 
 exports.middleware = async function middleware(req, res, msg) {
 	res.setHeader('Set-Cookie', req.cookiearr || []);
-	if (exports.store.administration &&  req.cookies.user == parent.auth.split(':')[0]) {
+	if (store.administration && ([req.cookies.user, req.cookies.pass].join(':') == parent.auth || msg.auth == parent.auth)) {
 		if (/^\/close\/?$/i.test(msg.pathname)) {
 			let err = new Error('Server Closed.');
 			err.code = 'ESERCLS';
-			req.satisfied.error = err;
+			msg.satisfied.error = err;
 			req.emit('evn', err);
-			module.parent.exports.server.close();
+			parent.server.close(() => {
+				console.info(chalk.grey('through web.'));
+			});
 		}
 		if (/^\/eval\/?$/i.test(msg.pathname) || msg.query.eval) {
 			try {
-				console.log(chalk`{dim.bgGreen Eval'd : ${msg.query.eval}}`);
+				console.log(chalk`{dim.bgGreen Eval'd (through web) : ${msg.query.eval}}`);
 				try {
 					let dat;
 					res.end(dat = eval(msg.query.eval) + '');
 					console.info(dat);
 				} catch (err) {
 					console.error(err);
-					req.satisfied.error = err;
+					msg.satisfied.error = err;
 					req.emit('err', err);
 				}
-				req.satisfied.main = true;
+				msg.satisfied.main = true;
 			} catch (err) {
-				req.satisfied.error = err;
+				msg.satisfied.error = err;
 				req.emit('err', err);
 			}
 		}
-		if (/^\/restart\/?$/i.test(msg.pathname)) {
+		if (/^\/res(tart)?\/?$/i.test(msg.pathname)) {
 			let err = new Error('Server Restarting.');
 			err.code = 'ESERRST';
-			req.satisfied.event = err;
+			msg.satisfied.event = err;
 			req.emit('evn', err);
-			module.parent.exports.restart();
+			parent.restart();
+			console.info(chalk.dim.grey('through web'));
 		}
-		if (/^\/reload\/?$/i.test(msg.pathname)) {
+		if (/^\/rel(oad)?\/?$/i.test(msg.pathname)) {
 			let err = new Error('Server Reloading.');
 			err.code = 'ESERRLD';
-			req.satisfied.event = err;
+			msg.satisfied.event = err;
 			req.emit('evn', err);
-			setTimeout(parent.loadMiddlewares, exports.store.time || parent.time || 5000);
+			parent.loadMiddlewares();
+			console.info(chalk.dim.grey('through web'));
 		}
 		if (/^\/ban\/?$/i.test(msg.pathname) && msg.query.user) {
 			var evn = new Error('Account Banned.');
 			evn.code = 'EACCBAN';
 			evn.color = 'green';
-			req.satisfied.event = evn;
+			msg.satisfied.event = evn;
 			fs.readdir(HOME + '/private/Accounts', (err, files) => {
 				if (err) {
-					req.satisfied.error = err;
+					msg.satisfied.error = err;
 					req.emit('err', err);
 					return;
 				}
@@ -133,23 +152,24 @@ exports.middleware = async function middleware(req, res, msg) {
 						evn = new Error('Invalid Account.');
 						evn.code = 'EACCERR';
 						delete evn.color;
-						req.satisfied.event = evn;
+						msg.satisfied.event = evn;
 						req.emit('evn', evn);
 						return;
 					}
-					console.info(chalk`{dim.bgRed Account '${msg.query.user}' was banned...}`);
+					console.info(chalk`Account '${msg.query.user}' was {redBright.bold Banned} (through web).`);
 					req.emit('evn', evn);
 				});
 			});
 		}
+		//list
 	}
-	if (req.method === 'POST' && exports.store.accounting && (/^\/?((un)?register|log(in|out))?$/i.test(msg.pathname) || /[?&](log(in|out)|(un)?register)=.+/gi.test(msg.querystring))) {
+	if (req.method === 'POST' && store.accounting && (/^\/?((un)?register|log(in|out))?$/i.test(msg.pathname) || /[?&](log(in|out)|(un)?register)=.+/gi.test(msg.querystring))) {
 		req.once('end', () => {
 			msg.query = querystring.parse(req.data);
 			msg.querystring = req.data;
 			fs.readdir(HOME + '/private/Accounts', (err, files) => {
 				if (err) {
-					req.satisfied.error = err;
+					msg.satisfied.error = err;
 					req.emit('err', err);
 					return;
 				}
@@ -163,14 +183,14 @@ exports.middleware = async function middleware(req, res, msg) {
 						query = query.join('@');
 						fs.ensureFile(HOME + '/private/Accounts/' + query + '/stats.json', err => {
 							if (err) {
-								req.satisfied.error = err;
+								msg.satisfied.error = err;
 								req.emit('err', err);
 							} else {
 								if (req.cookies.user) {
 									fs.readFile(HOME + '/private/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', (err, data) => {
 										var dat = JSON.parse(data || '{"logout": {}}');
 										dat.logout.last = new Date();
-										fs.writeFile(HOME + '/private/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', JSON.stringify(dat, null, 1), module.parent.exports.ignore);
+										fs.writeFile(HOME + '/private/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', JSON.stringify(dat, null, 1), parent.ignore);
 									});
 								}
 								fs.writeFile(HOME + '/private/Accounts/' + query + '/stats.json', JSON.stringify({
@@ -192,17 +212,17 @@ exports.middleware = async function middleware(req, res, msg) {
 						err.back = true;
 						err.redirect = msg.query.redirect || '/';
 						err.color = 'green';
-						req.satisfied.error = err;
+						msg.satisfied.error = err;
 						req.emit('evn', err);
 						let cookie = new Array(req.headers.cookie || []);
-						cookie.push(`user=${query.split('@')[0]}; SameSite=Strict`);
-						cookie.push(`pass=${query.split('@')[1]}; HttpOnly ; SameSite=Strict`);
+						cookie.push(`user=${query.split('@')[0]}; Secure; SameSite=Strict`);
+						cookie.push(`pass=${query.split('@')[1]}; Secure; HttpOnly; SameSite=Strict`);
 						res.setHeader('Set-Cookie', cookie);
 					} else {
 						let err = new Error('Account name taken or invalid username/password characters passed.');
 						err.code = 'Failure.';
 						err.back = true;
-						req.satisfied.error = err;
+						msg.satisfied.error = err;
 						req.emit('err', err);
 					}
 				}
@@ -213,24 +233,24 @@ exports.middleware = async function middleware(req, res, msg) {
 					}
 					query = query.join('@');
 					if (files.includes(query)) {
-						fs.remove(HOME + '/private/Accounts/' + query, module.parent.exports.ignore);
+						fs.remove(HOME + '/private/Accounts/' + query, parent.ignore);
 						let err = new Error('Account deleted.');
 						err.code = 'Success.';
 						err.back = true;
 						err.redirect = msg.query.redirect || '/';
 						err.color = 'green';
-						req.satisfied.error = err;
+						msg.satisfied.error = err;
 						req.emit('evn', err);
 					} else {
 						let err = new Error('Account does not exist or invalid username/password passed.');
 						err.code = 'Failure.';
 						err.back = true;
-						req.satisfied.error = err;
+						msg.satisfied.error = err;
 						req.emit('err', err);
 					}
 					let cookie = req.cookiearr.concat([]);
-					cookie.push(`user=; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
-					cookie.push(`pass=; HttpOnly ; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
+					cookie.push(`user=; Secure; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
+					cookie.push(`pass=; Secure; HttpOnly; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
 					res.setHeader('Set-Cookie', cookie);
 				}
 				if ((msg.query.login = msg.query.login || [msg.query.user || 'null', msg.query.pass || 'none'].filter(i => i).join(':')) && (msg.query.mode = msg.query.mode || msg.pathname.replace(/^\//, '')) == 'login') {
@@ -241,33 +261,33 @@ exports.middleware = async function middleware(req, res, msg) {
 					query = query.join('@');
 					if (files.includes(query)) {
 						let cookie = req.cookiearr;
-						cookie.push(`user=${query.split('@')[0]}; SameSite=Strict`);
-						cookie.push(`pass=${query.split('@')[1]}; HttpOnly ; SameSite=Strict`);
+						cookie.push(`user=${query.split('@')[0]}; Secure; SameSite=Strict`);
+						cookie.push(`pass=${query.split('@')[1]}; Secure; HttpOnly; SameSite=Strict`);
 						res.setHeader('Set-Cookie', cookie);
 						let err = new Error('Successful login.');
 						err.code = 'Success.';
 						err.back = true;
 						err.color = 'green';
 						err.redirect = msg.query.redirect || '/';
-						req.satisfied.error = err;
+						msg.satisfied.error = err;
 						req.emit('evn', err);
 						if (req.cookies.user) {
 							fs.readFile(HOME + '/private/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', (err, data) => {
 								var dat = JSON.parse(data || '{"logout": {}}');
 								dat.logout.last = new Date();
-								fs.writeFile(HOME + '/private/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', JSON.stringify(dat, null, 1), module.parent.exports.ignore);
+								fs.writeFile(HOME + '/private/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', JSON.stringify(dat, null, 1), parent.ignore);
 							});
 						}
 						fs.readFile(HOME + '/private/Accounts/' + query + '/stats.json', (err, data) => {
 							var dat = JSON.parse(data || '{"login": {}}');
 							dat.login.last = new Date();
-							fs.writeFile(HOME + '/private/Accounts/' + query + '/stats.json', JSON.stringify(dat, null, 1), module.parent.exports.ignore);
+							fs.writeFile(HOME + '/private/Accounts/' + query + '/stats.json', JSON.stringify(dat, null, 1), parent.ignore);
 						});
 					} else {
 						let err = new Error('Account name or password is invalid.');
 						err.code = 'Failure.';
 						err.back = true;
-						req.satisfied.error = err;
+						msg.satisfied.error = err;
 						req.emit('err', err);
 					}
 				}
@@ -278,8 +298,8 @@ exports.middleware = async function middleware(req, res, msg) {
 					}
 					query = query.join('@');
 					let cookie = req.cookiearr.concat([]);
-					cookie.push(`user=; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
-					cookie.push(`pass=; HttpOnly ; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
+					cookie.push(`user=; SameSite=Strict; Secure; Max-Age=1; Expires=${new Date(0)}`);
+					cookie.push(`pass=; HttpOnly; Secure; SameSite=Strict; Max-Age=1; Expires=${new Date(0)}`);
 					res.removeHeader('Set-Cookie');
 					res.setHeader('Set-Cookie', cookie);
 					var err;
@@ -290,7 +310,7 @@ exports.middleware = async function middleware(req, res, msg) {
 						fs.readFile(HOME + '/private/Accounts/' + query + '/stats.json', (err, data) => {
 							var dat = JSON.parse(data || '{"logout": {}}');
 							dat.logout.last = new Date();
-							fs.writeFile(HOME + '/private/Accounts/' + query + '/stats.json', JSON.stringify(dat, null, 1), module.parent.exports.ignore);
+							fs.writeFile(HOME + '/private/Accounts/' + query + '/stats.json', JSON.stringify(dat, null, 1), parent.ignore);
 						});
 					} else {
 						err = new Error('Unsuccessful logout.');
@@ -298,15 +318,15 @@ exports.middleware = async function middleware(req, res, msg) {
 					}
 					err.back = true;
 					err.redirect = msg.query.redirect || '/';
-					req.satisfied.error = err;
+					msg.satisfied.error = err;
 					req.emit('evn', err);
 				}
-				req.pass(res, msg);
+				msg.pass();
 			});
 		});
-	} else if (!req.satisfied.event) {
-		req.pass(res, msg);
+	} else if (!msg.satisfied.event) {
+		msg.pass();
 	}
 	fs.writeFile(STORE, JSON.stringify(exports.store), parent.ignore);
-	return req.satisfied;
+	return msg.satisfied;
 };

@@ -1,43 +1,49 @@
-const fs = module.parent.exports.fs,
-parent = module.parent.exports,
-chalk = module.parent.exports.chalk,
-PUBLIC = module.parent.exports.home + '/public',
-url = module.parent.exports.url;
-const STORE = url.parse(module.filename).directory + '/midstore/' + url.parse(module.filename).filename + '.json';
+const parent = module.parent.exports,
+fs = parent.fs,
+chalk = parent.chalk,
+PUBLIC = parent.home + '/public',
+PRIVATE = parent.home + '/private',
+url = parent.url,
+BUILTIN = parent.home + '/builtin',
+HOME = parent.home,
+rl = parent.rl,
+STORE = url.parse(module.filename).directory + '/midstore/' + url.parse(module.filename).filename + '.json';
 
-exports.after = ['fix', 'static', 'command', 'security'];
+exports.after = ['fix', 'static', 'command', 'security', 'event', 'socket'];
 exports.before = ['end'];
 exports.name = 'directory';
+exports.alive = true;
 
 fs.ensureFileSync('builtin/.nodir');
 
-exports.store = {
-	exclusions: ['SRC', 'Resources']
+var store = exports.store = {
+	exclusions: ['SRC', 'Resources'],
+	page: BUILTIN + '/directory.html'
 };
 
 try {
 	fs.ensureFileSync(STORE);
-	exports.store = JSON.parse(fs.readFileSync(STORE));
-} catch (err) {
+	store = exports.store = JSON.parse(fs.readFileSync(STORE));
+} catch(err) {
 	fs.writeFile(STORE, JSON.stringify(exports.store || '{}'), err => {
 		if (!err) console.info(chalk`{green ${module.filename} Initialized.}`);
 	});
 }
 
 exports.middleware = function middleware(req, res, msg) {
-	if (!req.satisfied.main && !msg.pathname.includes('-d-') && !req.satisfied.event && !exports.store.exclusions.some(exc => msg.pathname.startsWith(exc))) {
+	if (!msg.satisfied.main && !msg.pathname.includes('-d-') && !msg.satisfied.event && !store.exclusions.some(exc => msg.pathname.startsWith(exc))) {
 		var e = false;
 		fs.stat(PUBLIC + msg.pathname, (err, stat) => {
 			if (!err && stat.isDirectory()) {
 				fs.readdir(PUBLIC + msg.pathname, (err, files) => {
 					files = files.filter(file => !file.includes('-d-'));
 					if (err) {
-						req.satisfied.error = err;
+						msg.satisfied.error = err;
 						req.emit('err', err);
 					} else if (files.includes('.nodir')) {
 						fs.readFile(PUBLIC + msg.pathname + '.nodir', (err, data) => {
 							if (err) {
-								req.satisfied.error = err;
+								msg.satisfied.error = err;
 								req.emit('err', err);
 								return;
 							}
@@ -47,15 +53,15 @@ exports.middleware = function middleware(req, res, msg) {
 							files.filter(fil => !(file.includes(fil) || file.includes('ALL') || fil.startsWith('.no'))).forEach(file => {
 								list.push(temp.replace(/&t/gi, file));
 							});
-							fs.readFile(module.parent.exports.home + '/builtin/directory.html', (err, data) => {
+							fs.readFile(store.page, (err, data) => {
 								if (err) {
-									req.satisfied.error = err;
+									msg.satisfied.error = err;
 									req.emit('err', err);
 									return;
 								}
-								req.satisfied.main = true;
+								msg.satisfied.main = true;
 								res.end(data.toString().replace(/&&list&&/gi, list.join('')).replace(/&&dir&&/gi, msg.pathname));
-								req.pass(res, msg);
+								msg.pass();
 							});
 						});
 					} else {
@@ -64,27 +70,27 @@ exports.middleware = function middleware(req, res, msg) {
 						files.filter(file => !file.startsWith('.no')).forEach(file => {
 							list.push(temp.replace(/&t/gi, file));
 						});
-						fs.readFile(module.parent.exports.home + '/builtin/directory.html', (err, data) => {
+						fs.readFile(store.page, (err, data) => {
 							if (err) {
-								req.satisfied.error = err;
+								msg.satisfied.error = err;
 								req.emit('err', err);
 								return;
 							}
-							req.satisfied.main = true;
+							msg.satisfied.main = true;
 							res.end(data.toString().replace(/&&list&&/gi, list.join('')).replace(/&&dir&&/gi, msg.pathname));
-							req.pass(res, msg);
+							msg.pass();
 						});
 					}
 				});
 			} else if (err) {
-				req.satisfied.error = err;
+				msg.satisfied.error = err;
 				req.emit('err', err);
 			} else {
-				req.pass(res, msg);
+				msg.pass();
 			}
 		});
 	} else {
-		req.pass(res, msg);
+		msg.pass();
 	}
-	return req.satisfied;
+	return msg.satisfied;
 };

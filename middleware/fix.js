@@ -4,41 +4,46 @@
 		extended : assume extension 'n' stuff...
 		basic : autocorrect small common mistypes
 */
+const parent = module.parent.exports,
+fs = parent.fs,
+chalk = parent.chalk,
+PUBLIC = parent.home + '/public',
+PRIVATE = parent.home + '/private',
+url = parent.url,
+BUILTIN = parent.home + '/builtin',
+HOME = parent.home,
+rl = parent.rl,
+STORE = url.parse(module.filename).directory + '/midstore/' + url.parse(module.filename).filename + '.json';
 
-const fs = module.parent.exports.fs,
-chalk = module.parent.exports.chalk,
-parent = module.parent.exports,
-url = module.parent.exports.url;
-const STORE = url.parse(module.filename).directory + '/midstore/' + url.parse(module.filename).filename + '.json';
-
-exports.after = ['command', 'security'];
+exports.after = ['command', 'security', 'event', 'socket'];
 exports.before = ['static', 'directory', 'end'];
 exports.name = 'fix';
+exports.alive = true;
 
-exports.fix = {
+var store = exports.store = {
 	strength: 'extreme' || 'extended' || 'basic'
 };
 
 try {
 	fs.ensureFileSync(STORE);
-	exports.store = JSON.parse(fs.readFileSync(STORE));
-} catch (err) {
+	store = exports.store = JSON.parse(fs.readFileSync(STORE));
+} catch(err) {
 	fs.writeFile(STORE, JSON.stringify(exports.store || '{}'), err => {
 		if (!err) console.info(chalk`{green ${module.filename} Initialized.}`);
 	});
 }
 
 exports.middleware = function middleware(req, res, msg) {
-	if (!req.satisfied.main) {
-		fs.stat(module.parent.exports.home + '/public' + msg.pathname, async (err, stat) => {
+	if (!msg.satisfied.main) {
+		fs.stat(parent.home + '/public' + msg.pathname, async (err, stat) => {
 			if (!err && stat.isDirectory() && !msg.pathname.endsWith('/')) {
 				msg.pathname += '/';
-				res.writeHead(302, module.parent.exports.http.STATUS_CODES['302'], {
+				res.writeHead(302, parent.http.STATUS_CODES['302'], {
 					'Location': msg.pathname
 				});
 				res.end('Redirecting...');
 			} else if (!err) {
-				req.pass(res, msg);
+				msg.pass();
 			} else {
 				var v1 = msg.filename, fixes;
 				v1 = v1[0].toUpperCase() + v1.slice(1);
@@ -67,25 +72,25 @@ exports.middleware = function middleware(req, res, msg) {
 					nar.push('-f-d-' + fix);
 				});
 				fixes = nar.flt();
-				if (exports.fix.strength === 'extended' || exports.fix.strength === 'extreme') {
+				if (store.strength === 'extended' || store.strength === 'extreme') {
 					try {
-						var files = await dir(module.parent.exports.home + '/public' + msg.directory);
+						var files = await dir(PUBLIC + msg.directory);
 						files.filter(file =>
 						msg.file.includes(file) ||
 						msg.file.toUpperCase().includes(file.toUpperCase()) ||
 						file.includes(msg.filename) ||
 						file.toUpperCase().includes(msg.filename.toUpperCase())
 						).forEach(i => fixes.push(i));
-					} catch(err) {}
+					} catch(err) { }
 				}
 				var counter = 0;
 				tick();
 				function tick() {
-					if (counter >= fixes.length) return req.pass(res, msg);
-					fs.stat(module.parent.exports.home + '/public' + msg.pathname.replace(msg.file, fixes[counter]), (err, stat) => {
+					if (counter >= fixes.length) return msg.pass();
+					fs.stat(parent.home + '/public' + msg.pathname.replace(msg.file, fixes[counter]), (err, stat) => {
 						if (err) return tick(++counter);
 						var temp = msg.pathname.replace(msg.file, fixes[counter++]);
-						msg = url.parse(req.url = req.url.replace(msg.pathname, temp), true);
+						msg = Object.assign(url.parse(req.url = req.url.replace(msg.pathname, temp), true), msg);
 						if (!err && stat.isDirectory() && !msg.pathname.endsWith('/')) {
 							msg.pathname += '/';
 							res.writeHead(302, module.parent.exports.http.STATUS_CODES['302'], {
@@ -93,19 +98,19 @@ exports.middleware = function middleware(req, res, msg) {
 							});
 							res.end('Redirecting...');
 						} else {
-							req.pass(res, msg);
+							msg.pass();
 						}
 					});
 				} //tick
 			}
 		});
 	} else {
-		req.pass(res, msg);
+		msg.pass();
 	}
 	return req.satisfied;
 };
 
-var dir = exports.dir = async function dir(dr) {
+const dir = exports.dir = async function dir(dr) {
 	return new Promise((rsl, rjc) => {
 		fs.readdir(dr, (err, files) => {
 			if (err) rjc(err);
