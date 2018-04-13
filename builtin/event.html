@@ -2,6 +2,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
+		<meta charset=UTF-8>
 		<meta name=viewport content=width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no>
 		<title>&&type&&</title>
 		<style>
@@ -16,7 +17,7 @@
 				location.href.split('?').slice(1).join('?').split('&').forEach(function(param) {
 					pars[param.split('=')[0]] = param.split('=').slice(1).join('=');
 				});
-				if (&&back&& || pars.back) setTimeout(history.back, (&&intr&& || pars.intr) * 1, &&times&& || pars.times);
+				if (&&back&& || pars.back) setTimeout(function(){history.back()}, (&&intr&& || pars.intr) * 1, &&times&& || pars.times);
 				if ('&&redi&&' != 'undefined' || pars.redi) setTimeout(function(redi) {location = redi}, (&&intr&& || pars.intr) * 1, pars.redi || '&&redi&&');
 				if ('&&ale&&' != 'undefined' || pars.ale) alert(pars.ale || '&&ale&&');
 			};
