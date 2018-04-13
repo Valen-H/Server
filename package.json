@@ -1,10 +1,10 @@
 {
   "name": "server",
-  "version": "1.1.9",
+  "version": "1.1.17",
   "description": "A localhost server framework with custom middlewares and templating engine.",
-  "main": "server.js",
+  "main": "module.js",
   "scripts": {
-    "test": "npm install -g && npm start",
+    "test": "npm install -g",
     "start": "node server.js --no-deprecation"
   },
   "bin": {
@@ -12,11 +12,21 @@
   },
   "repository": {
     "type": "git",
-    "url": "none"
+    "url": "git+https://github.com/ValentinHacker/Server.git"
   },
+  "bugs": {
+    "url": "https://github.com/ValentinHacker/Server/issues"
+  },
+  "engines": {
+    "node": ">=6.0.0"
+  },
+  "homepage": "https://github.com/ValentinHacker/Server#readme",
   "keywords": [
     "server",
-    "net"
+    "https",
+    "templating",
+    "static",
+    "index"
   ],
   "author": "ValentinHacker",
   "license": "ISC",
@@ -26,6 +36,8 @@
     "socket.io": "^2.1.0"
   },
   "optionalDependencies": {
+    "selfsigned": "^1.10.2",
+    "update": "file:./lib/update",
     "url-extra": "file:./lib/url-extra"
   }
 }

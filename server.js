@@ -1,16 +1,29 @@
 #!/usr/bin/env node
 
-const http = exports.http = require('http'),
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"; //!!!
+
+//SWITCH TO HTTP IF NO .pem'S
+
+const http = exports.http = require('https'),
+path = exports.path = require('path'),
 url = exports.url = require('./lib/url-extra'),
 fs = exports.fs = require('fs-extra'),
-event = exports.error = require('./event.js'),
 readline = exports.readline = require('readline'),
 string_decoder = exports.string_decoder = require('string_decoder'),
 querystring = exports.querystring = require('querystring'),
 child_process = exports.child_process = require('child_process'),
 chalk = exports.chalk = require('chalk'),
-crypto = exports.crypto = require('crypto'),
-socket = exports.socket = require('socket.io');
+socket = exports.socket = require('socket.io'),
+stream = exports.stream = require('stream'),
+events = exports.event = require('events'),
+Console = exports.Console = require('console').Console,
+dgram = exports.dgram = require('dgram');
+
+try {
+	require('./lib/certs.js')();
+} catch(err) { }
+
+http.globalAgent.options.rejectUnauthorized = false;
 
 //----- TAKEN FROM nodemodule PROJECT
 Array.prototype.inherit = Array.prototype.inh = function(array) {
@@ -47,19 +60,35 @@ Array.prototype.rmv = String.prototype.rmv = function (elm, n) {
 	}
 	return arr;
 };
-//-----
+//----- WARNING
+
+delete console;
+console = this.console = global.console = new Console(new stream.Duplex({
+	write(chunk, encoding, callback) {
+		process.stdout.write(chunk, encoding);
+		exports.log.write(chunk, encoding, callback);
+	}
+})); //EXPORTABLE
 
 const PORT = exports.port = process.env.port || process.env.npm_config_port || 8080,
 HOME = exports.home = fs.realpathSync(process.env.home || process.env.npm_config_home || process.cwd()),
 WARES = exports.wares = eval(process.env.wares || process.env.npm_config_wares || "Symbol('ALL')"),
 INDEX = exports.index = process.env.index || process.env.npm_config_index || 'index',
-TIME = exports.time = (process.env.time || process.env.npm_config_time || 7000) * 1,
+TIME = exports.time = (process.env.time || process.env.npm_config_time || 6000) * 1,
 AUTH = exports.auth = process.env.auth || process.env.npm_config_auth || 'admin:root',
-ignore = exports.ignore = () => {};
+BCLOG = exports.bclog = process.env.bclog || process.env.npm_config_bclog || 100;
+LOG = exports.log = HOME + '/' + (process.env.log || process.env.npm_config_log || 'log.log'),
+ignore = exports.ignore = (...p) => {},
+log = exports.log = fs.createWriteStream(LOG, {
+	flags: 'a+'
+}),
+cert = fs.readFileSync('cert.pem'),
+key = fs.readFileSync('private.pem'),
+ca = fs.readFileSync('clientcert.pem');
 
 var midnames = exports.midnames = [];
 var middlewares = exports.middlewares = [], imid,
-middlewaresO = exports.middlewaresO = {};
+middlewaresO = exports.middlewaresO = {}, loadMiddlewares;
 
 fs.ensureDirSync('middleware');
 fs.ensureDirSync(HOME + '/middlewares');
@@ -70,88 +99,122 @@ if (!fs.readdirSync(HOME + '/middlewares').length) {
 	fs.copySync('middleware', HOME + '/middlewares');
 }
 
-var rl = exports.rl = readline.createInterface({input: process.stdin, output: process.stdout});
-rl.comm = rl.exe = false;
-rl.on('line', exports.list = line => {
-	if (rl.comm) {
+const rl = exports.rl = readline.createInterface({input: process.stdin, output: process.stdout});
+rl.handled = rl.adm = rl.comm = rl.exe = false;
+rl.block = {};
+rl.count = 1;
+rl.tick = function() {
+	if (--rl.count <= 0) {
+		rl.count = rl.listenerCount('line');
+		rl.handled = false;
+		return true;
+	}
+	return false;
+};
+rl.on('line', exports.line = line => {
+	if (rl.block.main || rl.handled) {
+		rl.tick();
+		return;
+	} else if (rl.comm) {
 		line = '# ' + line;
 	} else if (rl.exe) {
 		line = 'e ' + line;
 	}
-	if (/^((re)?load|rel)$/i.test(line)) {
+	if (!line) {
+		rl.handled = true;
+		fs.createReadStream(LOG).pipe(process.stdout);
+	} else if (/^((re)?load|rel)$/i.test(line)) {
+		rl.handled = true;
 		loadMiddlewares();
 	} else if (/^((re)?start|res)$/i.test(line)) {
-		exports.rl.close();
+		rl.handled = true;
 		restart();
 	} else if (/^exi?t?$/i.test(line)) {
-		rl.pause();
+		rl.handled = true;
 		rl.close();
 	} else if (/^(stop|close|cls)$/i.test(line)) {
+		rl.handled = true;
 		server.close();
 	} else if (/^q(ui)?t$/i.test(line)) {
+		rl.handled = true;
 		process.exit();
 	} else if (/^clea[nr]$/i.test(line)) {
+		rl.handled = true;
+		console.log('\n'.repeat(50));
 		console.clear();
+		fs.truncate(LOG, () => {
+			console.log(chalk`Logs erased.\n{grey ${new Date()}}`);
+		});
 	} else if (/^up(time)?/i.test(line)) {
+		rl.handled = true;
 		console.info(chalk`{dim.yellowBright Up since : ${process.uptime()} sec.}`);
+	} else if (/^e(v(al?)?)?$/i.test(line)) {
+		rl.exe = true;
+		rl.handled = true;
+		console.info(chalk`{dim.yellow REPL session engaged.}`);
+	} else if (/^e(v(al?)?)? ?(e(v(al?)?)?){1,2}$/i.test(line)) {
+		rl.exe = false;
+		rl.handled = true;
+		console.info(chalk`{yellow REPL session disengaged.}`);
+	} else if (/^e(v(al?)?)? (?!(e(v(al?)?)?){1,2}$)/i.test(line)) {
+		rl.handled = true;
+		line = line.replace(/^e(v(al?)?)? /i, '');
+		try {
+			console.log(eval(line));
+		} catch(err) {
+			console.error(chalk`{dim.bgRed ${err}}`);
+		}
 	} else if (/^#$/i.test(line)) {
 		rl.comm = true;
+		rl.handled = true;
 		console.info(chalk`{dim.yellow Shell session engaged.}`);
 	} else if (/^# ?#{1,2}$/i.test(line)) {
 		rl.comm = false;
+		rl.handled = true;
 		console.info(chalk`{dim.yellow Shell session disengaged.}`);
-	} else if (/^ev?a?l?$/i.test(line)) {
-		rl.exe = true;
-		console.info(chalk`{dim.yellow REPL session engaged.}`);
-	} else if (/^ev?a?l? ?(ev?a?l?){1,2}$/i.test(line)) {
-		rl.exe = false;
-		console.info(chalk`{yellow REPL session disengaged.}`);
-	} else if (/^# .(?!#{1,2})/i.test(line)) {
+	} else if (/^# (?!#{1,2}$)/i.test(line)) {
+		rl.handled = true;
 		const proc = child_process.spawn(line.split(' ')[1], line.split(' ').slice(2).concat(line.split(' ')[1] == 'ls' ? ['--color=auto'] : []), {
 			cwd: process.cwd(),
-			silent: true,
 			detached: false,
-			shell: true,
-			stdio: 'inherit'
+			stdio: 'inherit',
+			shell: true
 		});
 		proc.on('error', console.error);
 		proc.on('close', code => {
 			if (code) {
 				code = chalk`{red ${code}}`;
 			} else {
-				code = chalk`{cyan ${code}}`;
+				code = chalk`{green ${code}}`;
 			}
 			console.log(chalk`{grey.dim.bgYellow.bold child process exited with code ${code}.}`);
 			rl.resume();
 		});
 		rl.pause();
-	} else if (/^ev?a?l? ./i.test(line)) {
-		line = line.replace(/^ev?a?l? /i, '');
-		try {
-			console.log(eval(line));
-		} catch(err) {
-			console.error(chalk`{dim.bgRed ${err}}`);
-		}
+	} else if (/^cert$/i.test(line)) {
+		require('./lib/certs.js')();
 	}
+	rl.tick();
 });
 
-var mid = exports.mid = fs.watch(HOME + '/middlewares', {recursive: true}, (type, file) => {
-	if (type == 'change' && file.endsWith('.js')) loadMiddlewares();
+const mid = exports.mid = fs.watch(HOME + '/middlewares', { recursive: true }, (type, file) => {
+	if (file.endsWith('.js') || file.includes('midstore')) loadMiddlewares();
 }),
 watch = exports.watch = fs.watch(HOME, (type, file) => {
 	if (type == 'change' && file.endsWith('.js')) restart();
-});
+}),
 
-var loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares() {
+reload = exports.reload = loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares() {
 	middlewares = [];
 	rl.removeAllListeners()
-	rl.on('line', exports.list);
+	rl.count = 1;
+	rl.on('line', exports.line);
 	fs.readdirSync(HOME + '/middlewares').flt().filter(mwar => mwar.endsWith('.js') && !mwar.startsWith('d-') && (typeof WARES === 'symbol' || WARES.includes(mwar.replace(/\.js$/, '')))).flt().forEach(mwar => {
 		try {
 			delete require.cache[require.resolve(HOME + '/middlewares/' + mwar)];
 			middlewares.push(require(HOME + '/middlewares/' + mwar) || 'null');
 		} catch (err) {
-			console.error(chalk`{dim.bgRed ${mwar + ' : ' + err}}`);
+			console.error(chalk`{dim.bgRed ${mwar + ' : ' + err}\n${err.stack}}`);
 		}
 	});
 	do {
@@ -174,40 +237,69 @@ var loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares()
 	middlewares.forEach(md => middlewaresO[md.name] = md);
 	fs.writeFileSync(HOME + '/middlewares/order.json', JSON.stringify(middlewares.flt().map(mwar => mwar.name).join('>')));
 	midnames = midnames.flt();
+	http.get({
+		port: PORT,
+		cert: cert,
+		key: key,
+		ca: ca,
+		path: '/startup',
+		agent: false
+	}, ignore);
 	console.info(chalk`{grey Middlewares reloaded...}`);
 },
 restart = exports.restart = function restart() {
-	exports.rl.close();
-	exports.watch.close();
-	exports.mid.close();
-	/*exports.server.once('close', () => {
-		delete require.cache[require.resolve(module.filename)];
-		exports = require(module.filename);
-		exports.rl.comm = rl.comm;
-	});*/
-	exports.server.close();
-	child_process.spawn(process.argv[0], process.argv.slice(1), {
+	console.info(chalk.whiteBright.dim.bold.underline('Server Restarting...'));
+	rl.close();
+	watch.close();
+	mid.close();
+	server.close();
+	http.get({
+		port: PORT,
+		headers: {Cookie: `user=${AUTH.split(':')[0]}; pass=${AUTH.split(':')[1]}`},
+		auth: AUTH,
+		cert: cert,
+		key: key,
+		ca: ca,
+		path: '/close',
+		agent: false
+	}, ignore).on('error', ignore);
+	exports.child = child_process.spawn(process.argv[0], process.argv.slice(1), {
 		cwd: process.cwd(),
 		env: process.env,
 		argv0: process.argv[0],
-		shell: true,
-		stdio: 'inherit',
-		detached: true
+		stdio: 'inherit'
 	});
 	if (process.disconnect) process.exit();
 };
 
 loadMiddlewares();
 
-var server = exports.server = http.createServer((req, res) => {
+const server = exports.server = http.createServer({
+	key: fs.readFileSync('private.pem'),
+	cert: fs.readFileSync('cert.pem'),
+	ca: [fs.readFileSync('clientcert.pem')],
+	rejectUnauthorized: false,
+	requestCert: true
+}, (req, res) => {
 	req.url = querystring.unescape(req.url);
-	var msg = url.parse(req.url, true);
-	req.satisfied = {main: false, set error(value) {this.event = value}, get error() {return this.event}, event: null};
-	req.once('err', err => {
-		event(req, res, msg);
-	}).on('evn', err => {
-		event(req, res, msg);
-	});
+	var msg = req.msg = url.parse(req.url, true);
+	msg.satisfied = {
+		main: false,
+		set error(value) {
+			this.event = value;
+		},
+		get error() {
+			return this.event;
+		},
+		event: null
+	};
+	res.satisfied = req.satisfied = msg.satisfied;
+	req.res = res;
+	req.msg = msg;
+	res.req = req;
+	res.msg = msg;
+	msg.req = req;
+	msg.res = res;
 	req.cookies = {};
 	req.dec = new string_decoder.StringDecoder();
 	req.end = false;
@@ -225,47 +317,64 @@ var server = exports.server = http.createServer((req, res) => {
 			let err = new Error('Connection timed out.');
 			err.code = 'ETIME';
 			req.satisfied.error = err;
-			event(req, res, msg);
+			req.emit('err', err);
 		}
 	}, TIME, req, res, msg);
-	req.middle = 0;
-	req.pass = function(res, msg) {
+	msg.middle = - 1;
+	msg.pass = function() {
+		var [req, res, msg] = [this.req, this.res, this];
 		try {
-			if (middlewares[this.middle + 1]) middlewares[++this.middle].middleware(req, res, msg);
+			if (middlewares[this.middle + 1]) {
+				if (!middlewares[++this.middle].alive) {
+					middlewares.slice(this.middle, 1);
+					msg.pass();
+				} else {
+					middlewares[this.middle].middleware(req, res, msg);
+				}
+			}
 		} catch(err) {
-			console.error(chalk`{dim.red ${err}}`);
+			console.error(chalk`{dim.red ${midnames[req.middle] + ' : ' + err}\n${err.stack}}`);
 			req.satisfied.error = err;
 			req.emit('err', err);
 		}
 	};
-	middlewares[0].middleware(req, res, msg);
-}).listen(PORT, ignore).on('error', ignore).on('connect', (req, socket, head) => {
+	res.pass = req.pass = function() {
+		this.msg.pass();
+	};
+	msg.pass();
+}).listen(PORT, BCLOG).on('error', err => {
+	http.get({
+		port: PORT,
+		headers: {Cookie: `user=${AUTH.split(':')[0]}; pass=${AUTH.split(':')[1]}`},
+		auth: AUTH,
+		cert: cert,
+		key: key,
+		ca: ca,
+		path: '/close',
+		agent: false
+	}, (req, res) => {
+		var lis;
+		server.listen(PORT, BCLOG);
+	}).on('error', err => {
+		setTimeout(server.listen, TIME, PORT, BCLOG);
+	}).end();
+}).on('connect', (req, socket, head) => {
 	console.log(`${socket.remoteAddress} Connected.`);
 }).once('listening', () => {
 	fs.writeFile(HOME + '/private/up.txt', new Date(), ignore);
-}).on('listening', () => console.log(chalk`Server bound to port {greenBright ${PORT}}`)).on('close', () => {
-	console.log('Server Closed.');
+}).on('listening', () => {
+	console.log(chalk`Server bound to port {bold.greenBright ${PORT}}`);
+	http.get({
+		port: PORT,
+		cert: cert,
+		key: key,
+		ca: ca,
+		agent: false
+	}, ignore);
+}).on('close', () => {
+	fs.writeFile(HOME + '/private/down.txt', new Date(), ignore);
+	console.log(chalk`Server Closed.\n{gray.dim ${new Date()}}`);
 });
-
-var io = exports.io = socket(server, {
-	pingTimeout: 30000,
-	pingInterval: 5000,
-	cookie: true
-});
-
-/*const reqpar = exports.reqpar = function(data, raw = true) {
-	var headers = {};
-	data = data.split('\r\n').filter(i => i && i.includes(':')).flt();
-	data.forEach(dat => {
-		headers[raw ? dat.split(':')[0] : dat.split(':')[0].replace(/-/g, '').replace(/^./, c => c.toLowerCase())] = dat.split(':').slice(1).join(':').trim();
-	});
-	return headers;
-},
-sha1 = exports.sha1 = function(val) {
-	var shasum = crypto.createHash('sha1');
-	shasum.update(val);
-	return shasum.digest('hex');
-};*/
 
 //----- DANGEROUS
 process.removeAllListeners();
@@ -273,5 +382,5 @@ process.on('unhandledRejection', err => {
 	console.warn(chalk`{dim.grey ${err}}`);
 });
 process.on('uncaughtException', err => {
-	console.error(chalk`{dim.bgRed ${err}}`);
+	console.error(chalk`{dim.bgRed ${err.stack}}`);
 });
