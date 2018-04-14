@@ -31,11 +31,9 @@ try {
 	});
 }
 
-try {
-	fs.ensureDirSync(PRIVATE + '/Accounts/' + parent.auth.replace(':', '@'));
-	fs.ensureDirSync(PRIVATE + '/Admin');
-	fs.moveSync('builtin/panel.html', store.path);
-} catch(err) { }
+fs.ensureDirSync(PRIVATE + '/Accounts/' + parent.auth.replace(':', '@'));
+fs.ensureDirSync(PRIVATE + '/Admin');
+fs.copySync(BUILTIN + '/panel.html', store.path);
 
 rl.count++;
 if (store.administration) parent.rl.on('line', line => {
