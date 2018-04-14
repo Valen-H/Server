@@ -14,24 +14,21 @@
 		<meta name=keywords content=HTML,CSS,JS>
 		<meta name=author content=ValentinHacker>
 		<script>
-			auto = 'strict';
 			onload = function() {
-				cookies = {};
-				document.cookie.split(';').forEach(function(cookie) {
-					cookies[cookie.split('=')[0]] = cookie.split('=')[1];
-				});
-				act('div[0]', '%');
-				dbg();
+				if (<& [req.cookies.user, req.cookies.pass].join(':') == parent.auth &>) {
+					dbg();
+				}
 				mul('div[0]', "background='@radial-gradient(white 5%, lightgrey 80%, grey 110%)'");
 			};
 		</script>
 	</head>
-	<body bgcolor=grey class='fullscreen flexc center'>
+	<body bgcolor=grey class='flexc center'>
 		<div class='fullscreen flexc center'>
 			<h1>Welcome!</h1><br/>
 			<h4><& req.cookies.user || ' ' &></h4><br/>
 			<div>
-				<button onclick=location='portal.html'><& !req.cookies.user ? 'Register/Login' : 'Unregister/Logout' &></button>
+				<button onclick=location.href='portal.html'><& !req.cookies.user ? 'Register/Login' : 'Unregister/Logout' &></button><br/>
+				<button onclick=location.href='/admin' class=<& [req.cookies.user, req.cookies.pass].join(':') == parent.auth ? 'visible' : 'hidden' &>>Administration</button>
 			</div>
 		</div>
 	</body>
