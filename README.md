@@ -38,7 +38,8 @@
     * **administration** -> Whether administration GET commands will be enabled (`close?auth=admin:pass, restart?auth=admin:pass, reload?auth=admin:pass, eval?auth=admin:pass, ban?auth=admin:pass&user=name`). `auth` parameter is optional for logged-in admin.  
     * **accounting** -> Whether the inner POST accounting system will be enabled (`register, unregister, login, logout`).  
     * **time** -> Redirection intervals (Defaults to 4000).  
-  * **socket.js** -> Contains a realtime websocket module (`socket.io.js`) that offers administration capabilities to the admin and utilities to the user.  
+    * **page** -> Administration page controlled by *socket.js*, served under GET `/admin`.  
+  * **socket.js** -> Contains a realtime websocket module (`socket.io.js`) that offers administration capabilities to the admin and utilities to the user. This module in **co-operation** with *command.js* controls a page (`private/Admin/panel.html`) with administration utilities.  
     * **Namespaces** : `/main` -> mainpage util.  
     * **Channels** : `admin` -> admin command channel, `main` -> main channel.  
     * **Commands** : *Admin* : `socket.emit('close'), socket.emit('restart'), socket.emit('reload'), socket.send('"eval"')`.  
