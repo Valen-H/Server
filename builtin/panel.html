@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Admin Panel</title>
+		<meta charset=UTF-8>
+		<meta name=viewport content=width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no>
+		<script src=/JS/socket.io.js></script>
+		<script src=/JS/socket.js></script>
+		<link href=/CSS/Main.css rel=stylesheet />
+		<script>
+			NodeList.prototype.forEach = Array.prototype.forEach;
+			onload = function() {
+				logdat = '';
+				try {
+					socket.admin = io('/admin', {
+						forceNew: true,
+						secure: true,
+						rejectUnauthorized: false,
+						reconnect: true
+					});
+					logs = document.querySelector('#logs');
+					dir = document.querySelector('#dir');
+					edt = document.querySelector('#edt');
+					soc = document.querySelector('#soc');
+					direc = 'HOME';
+					socket.admin.on('message', function(log) {
+						logdat += log ? log : '' + '';
+						logs.innerHTML = (logdat.match(/(.|\n){1,2000}$/gmi) || [ ]).join('');
+						logs.scrollTop += logdat.split('\n').length * 10;
+					});
+					socket.on('joined', function(count, room) {
+						socket.emit('listAddr', function(addr) {
+							soc.innerHTML = '<li>' + addr.join('</li><li>') + '</li>';
+						});
+					});
+					socket.admin.emit('join', 'logs');
+					socket.emit('joined');
+					rel = function rel(e) {
+						direc = direc.length == 1 ? 'HOME' : direc;
+						edt.innerHTML = '';
+						return socket.admin.send('fs.readdir(' + direc + ', (err, files) => msg[1](files || err))', function(files) {
+							if (!files.join) {
+								socket.admin.send('fs.readFile(' + direc + ', (err, data) => msg[1](data ? data.toString() : err))', function(data) {
+									if (!data.code && !file) {
+										edt.value = data;
+										file = true;
+									} else if (file) {
+										direc = (direc.replace(new RegExp('(\/?[^/]+?\/?){2}$', 'g'), '\'') || 'HOME') + (e ? ' + "/' + e + '"' : '');
+										edt.value = '';
+										rel();
+									} else {
+										direc = direc.replace(new RegExp('(\/?[^/]+?\/?){' + (file ? 2 : 1) + '}$', 'g'), '\'') || 'HOME';
+										edt.value = '';
+										rel();
+									}
+								});
+								return;
+							}
+							file = false;
+							edt.value = '';
+							files.push('<b>Back</b>');
+							dir.innerHTML = '<li>' + files.join('</li><li>') + '</li>';
+							dir.querySelectorAll('li').forEach(function(li) {
+								li.onclick = function(ev) {
+									if (!/Back/i.test(ev.target.innerHTML)) {
+										direc += " + '/" + ev.target.innerHTML + "'";
+									} else {
+										direc = direc.replace(new RegExp('(\/?[^/]+?\/?){' + (file ? 2 : 1) + '}$', 'g'), '\'') || 'HOME';
+									}
+									rel(ev.target.innerHTML);
+								};
+							});
+						});
+					} //rel
+					rel();
+				} catch(err) {
+					console.error(err);
+				}
+			};
+			
+			function check(elm) {
+				if (elm.value.split('').pop() == '\n') {
+					var value = elm.value.split('');
+					value.pop();
+					socket.send(value.join(''));
+					elm.value = '';
+				}
+			} //elm
+			window.save = save = function save() {
+				if (file) socket.admin.send('fs.writeFile(' + direc + ', `' + edt.value + '`, msg[1])', function(err) {
+					edt.style.background = err ? 'lightred' : 'lightgreen';
+					setTimeout(function() {
+						edt.style.background = 'lightgrey';
+					}, 2000);
+				});
+			};
+			window.mkdir = mkdir = function mkdir() {
+				var path = prompt('Path', direc + ' + "/"');
+				if (!path) return;
+				socket.admin.send('fs.ensureDir(' + path + ', msg[1])', rel);
+			};
+			window.rmdir = rmdir = function rmdir() {
+				var path = prompt('Path', direc + ' + "/"');
+				if (!path) return;
+				socket.admin.send('fs.remove(' + path + ', msg[1])', rel);
+			};
+			window.mkfil = mkfil = function mkfil() {
+				var path = prompt('Path', direc + ' + "/"');
+				if (!path) return;
+				socket.admin.send('fs.ensureFile(' + path + ', msg[1])', rel);
+			};
+			onerror = function(e) {
+				console.error(e);
+			};
+		</script>
+		<style>
+			.box {
+				width: 100%;
+				height: 40vh;
+				box-sizing: border-box;
+				border: 1px ridge grey;
+				background: lightgrey;
+				border-radius: 3%;
+				box-shadow: 1px 1px 2px 0 inherit;
+				padding: 1%;
+			}
+		</style>
+	</head>
+	<body bgcolor=lightgrey class="flexc center" class=flexc>
+		<pre id=logs class="scroll center box"></pre><br/>
+		<textarea oninput=check(this) id=comm class="center box noresize" placeholder=CommandLine></textarea><hr/>
+		<button onclick=history.back()>Back</button><br/>
+		<ul id=dir class="center box scroll"></ul><br/>
+		<textarea id=edt class="center box noresize" placeholder=Editor></textarea><br/>
+		<button onclick=window.save()>Save</button><br/>
+		<button onclick=window.mkdir()>Mkdir</button>
+		<button onclick=window.rmdir()>Rmdir/Rmfile</button>
+		<button onclick=window.mkfil()>Mkfile</button><br/>
+		<ul id=soc class="center box scroll"></ul>
+	</body>
+</html>
