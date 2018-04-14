@@ -24,12 +24,12 @@
   
 ## Builtins (In Execution order)  
   * **security.js** -> POST DOS protection and other security stuff.  
-  * **event.js** -> Request event controlling module. Handles the `msg.satisfied.event = {color,code,message,type,syscall,errno,back,intr,redirect,alert,times}`. `request.emit('evn', err)`. Config :  
+  * **event.js** -> Request event controlling module. Handles the `msg.satisfied.event = {color,code,message,type,syscall,errno,back,intr,redirect,alert,times}` object. `request.emit('evn', err)`. Config :  
     * **page** -> Template page to serve event on (Default : `builtin/event.html`). `&&type&&` -> event type, `&&msg&&` -> event message, `&&col&&` -> event color, `&&code&&` -> event code, `&&list&&` -> directory contents, `&&back&&` -> boolean whether to redirect to previous page, `&&redi&&` -> redirection url, `&&ale&&` -> user alert, `&&intr&&` -> redirection interval, `&&times&&` -> number of pages to backtrack.  
   * **command.js** -> Contains commands which can be executed by respective url or console command, like :  
-    * `https://localhost:8080/close`  
-    * `https://localhost:8080/reload`  
-    * `https://localhost:8080/restart`  
+    * `https://localhost:port/close`  
+    * `https://localhost:port/reload`  
+    * `https://localhost:port/restart`  
     * POST : `https://localhost:port?login=admin:root&from=reg`  
     * POST : `https://localhost:port?unregister=admin:root`  
     * POST : `https://localhost:port?mode=register&user=admin&pass=root`  

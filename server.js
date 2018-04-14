@@ -5,6 +5,7 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"; //!!!
 //SWITCH TO HTTP IF NO .pem'S
 
 const http = exports.http = require('https'),
+htt = exports.htt = require('http'),
 path = exports.path = require('path'),
 url = exports.url = require('./lib/url-extra'),
 fs = exports.fs = require('fs-extra'),
@@ -17,11 +18,8 @@ socket = exports.socket = require('socket.io'),
 stream = exports.stream = require('stream'),
 events = exports.event = require('events'),
 Console = exports.Console = require('console').Console,
-dgram = exports.dgram = require('dgram');
-
-try {
-	require('./lib/certs.js')();
-} catch(err) { }
+dgram = exports.dgram = require('dgram'),
+stripAnsi = chalk.strip = exports.stripAnsi = require('strip-ansi');
 
 http.globalAgent.options.rejectUnauthorized = false;
 
@@ -60,13 +58,33 @@ Array.prototype.rmv = String.prototype.rmv = function (elm, n) {
 	}
 	return arr;
 };
+function rnd(frm, to, rd) {
+	if (frm === undefined) {
+		return "#" + ((Math.random() * 16777215) | 0).toString(16);
+	} else {
+		to = to === undefined ? frm : to;
+		frm = frm == to ? 0 : frm;
+		var tmp = [Math.min(frm, to), Math.max(frm, to)];
+		frm = tmp[0];
+		to = tmp[1];
+		return !rd ? (Math.random() * (to - frm) + frm) | 0 : (Math.random() * (to - frm) + frm);
+	}
+} //rnd
+Array.prototype.rnd = function (rd) {
+	var ind = rnd(0, this.length - 1);
+	if (rd) {
+		return ind;
+	}
+	return this[ind];
+};
 //----- WARNING
 
 delete console;
 console = this.console = global.console = new Console(new stream.Duplex({
 	write(chunk, encoding, callback) {
 		process.stdout.write(chunk, encoding);
-		exports.log.write(chunk, encoding, callback);
+		log.write(chunk, encoding, callback);
+		log.emit('data', chunk, encoding, callback);
 	}
 })); //EXPORTABLE
 
@@ -77,7 +95,7 @@ INDEX = exports.index = process.env.index || process.env.npm_config_index || 'in
 TIME = exports.time = (process.env.time || process.env.npm_config_time || 6000) * 1,
 AUTH = exports.auth = process.env.auth || process.env.npm_config_auth || 'admin:root',
 BCLOG = exports.bclog = process.env.bclog || process.env.npm_config_bclog || 100;
-LOG = exports.log = HOME + '/' + (process.env.log || process.env.npm_config_log || 'log.log'),
+LOG = exports.LOG = HOME + '/' + (process.env.log || process.env.npm_config_log || 'log.log'),
 ignore = exports.ignore = (...p) => {},
 log = exports.log = fs.createWriteStream(LOG, {
 	flags: 'a+'
@@ -85,6 +103,8 @@ log = exports.log = fs.createWriteStream(LOG, {
 cert = fs.readFileSync('cert.pem'),
 key = fs.readFileSync('private.pem'),
 ca = fs.readFileSync('clientcert.pem');
+
+log.write('\n ' + '-'.repeat(30) + ' \n');
 
 var midnames = exports.midnames = [];
 var middlewares = exports.middlewares = [], imid,
@@ -111,7 +131,7 @@ rl.tick = function() {
 	}
 	return false;
 };
-rl.on('line', exports.line = line => {
+rl.on('line', exports.line = async line => {
 	if (rl.block.main || rl.handled) {
 		rl.tick();
 		return;
@@ -174,7 +194,7 @@ rl.on('line', exports.line = line => {
 		console.info(chalk`{dim.yellow Shell session disengaged.}`);
 	} else if (/^# (?!#{1,2}$)/i.test(line)) {
 		rl.handled = true;
-		const proc = child_process.spawn(line.split(' ')[1], line.split(' ').slice(2).concat(line.split(' ')[1] == 'ls' ? ['--color=auto'] : []), {
+		const proc = child_process.spawn(line.split(' ')[1], line.split(' ').slice(2).concat(/(^|\W|\b| )ls( |\W|\b|$)/g.test(line.split(' ').slice(1).join(' ')) ? ['--color=auto'] : []), {
 			cwd: process.cwd(),
 			detached: false,
 			stdio: 'inherit',
@@ -185,14 +205,22 @@ rl.on('line', exports.line = line => {
 			if (code) {
 				code = chalk`{red ${code}}`;
 			} else {
-				code = chalk`{green ${code}}`;
+				code = chalk`{cyan.dim ${code}}`;
 			}
 			console.log(chalk`{grey.dim.bgYellow.bold child process exited with code ${code}.}`);
 			rl.resume();
 		});
 		rl.pause();
 	} else if (/^cert$/i.test(line)) {
-		require('./lib/certs.js')();
+		console.log(chalk.cyanBright.dim('Forging...'));
+		await require('./lib/certs.js')();
+		console.log(chalk.yellow.dim('Certificates created.'));
+	} else if (/^(no)?col(ou?r)?$/i.test(line)) {
+		chalk.enabled = !/^no/i.test(line);
+		var cols = ['red', 'green', 'blue', 'cyan', 'magenta', 'yellow'];
+		var text = `Colors ${chalk.enabled ? 'Enabled' : 'Disabled'}.`;
+		text = text.split('').map(t => chalk`{${cols.rnd()}Bright.bold ${t}}`).join('');
+		console.log(text);
 	}
 	rl.tick();
 });
@@ -214,7 +242,7 @@ reload = exports.reload = loadMiddlewares = exports.loadMiddlewares = async func
 			delete require.cache[require.resolve(HOME + '/middlewares/' + mwar)];
 			middlewares.push(require(HOME + '/middlewares/' + mwar) || 'null');
 		} catch (err) {
-			console.error(chalk`{dim.bgRed ${mwar + ' : ' + err}\n${err.stack}}`);
+			console.error(chalk`{dim.bgRed ${mwar + ' : \n\t' + err.stack}}\n{gray ${new Date}}`);
 		}
 	});
 	do {
@@ -245,10 +273,10 @@ reload = exports.reload = loadMiddlewares = exports.loadMiddlewares = async func
 		path: '/startup',
 		agent: false
 	}, ignore);
-	console.info(chalk`{grey Middlewares reloaded...}`);
+	console.info(chalk`{grey Middlewares reloaded...\n${new Date}}`);
 },
 restart = exports.restart = function restart() {
-	console.info(chalk.whiteBright.dim.bold.underline('Server Restarting...'));
+	console.info(chalk.whiteBright.dim.bold.underline('Server Restarting...') + '\n' + chalk.gray(new Date));
 	rl.close();
 	watch.close();
 	mid.close();
@@ -313,10 +341,10 @@ const server = exports.server = http.createServer({
 	req.cookiearr = (req.headers.cookie || ';').split(';').filter(i => i).flt();
 	(req.headers.cookie || ';').split(';').filter(cook => cook.includes('=')).forEach(cookie => req.cookies[cookie.split('=')[0].trim()] = cookie.split('=')[1]);
 	setTimeout((req, res, msg) => {
-		if (!req.satisfied.main && !res.finished) {
+		if (!msg.satisfied.main && !res.finished) {
 			let err = new Error('Connection timed out.');
 			err.code = 'ETIME';
-			req.satisfied.error = err;
+			msg.satisfied.error = err;
 			req.emit('err', err);
 		}
 	}, TIME, req, res, msg);
@@ -333,8 +361,8 @@ const server = exports.server = http.createServer({
 				}
 			}
 		} catch(err) {
-			console.error(chalk`{dim.red ${midnames[req.middle] + ' : ' + err}\n${err.stack}}`);
-			req.satisfied.error = err;
+			console.error(chalk`{dim.red ${err.stack}}\n{gray ${new Date}}`);
+			msg.satisfied.error = err;
 			req.emit('err', err);
 		}
 	};
@@ -363,17 +391,17 @@ const server = exports.server = http.createServer({
 }).once('listening', () => {
 	fs.writeFile(HOME + '/private/up.txt', new Date(), ignore);
 }).on('listening', () => {
-	console.log(chalk`Server bound to port {bold.greenBright ${PORT}}`);
+	console.log(chalk`Server bound to port {bold.greenBright ${PORT}}\n{gray.dim ${new Date}}`);
 	http.get({
 		port: PORT,
 		cert: cert,
 		key: key,
 		ca: ca,
 		agent: false
-	}, ignore);
+	}, ignore).on('error', ignore);
 }).on('close', () => {
 	fs.writeFile(HOME + '/private/down.txt', new Date(), ignore);
-	console.log(chalk`Server Closed.\n{gray.dim ${new Date()}}`);
+	console.log(chalk`Server Closed.\n{gray.dim ${new Date}}`);
 });
 
 //----- DANGEROUS
