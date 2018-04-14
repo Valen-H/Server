@@ -38,7 +38,7 @@ exports.middleware = function middleware(req, res, msg) {
 		fs.stat(parent.home + '/public' + msg.pathname, async (err, stat) => {
 			if (!err && stat.isDirectory() && !msg.pathname.endsWith('/')) {
 				msg.pathname += '/';
-				res.writeHead(302, parent.http.STATUS_CODES['302'], {
+				res.writeHead(302, parent.htt.STATUS_CODES['302'], {
 					'Location': msg.pathname
 				});
 				res.end('Redirecting...');
@@ -93,7 +93,7 @@ exports.middleware = function middleware(req, res, msg) {
 						msg = Object.assign(url.parse(req.url = req.url.replace(msg.pathname, temp), true), msg);
 						if (!err && stat.isDirectory() && !msg.pathname.endsWith('/')) {
 							msg.pathname += '/';
-							res.writeHead(302, module.parent.exports.http.STATUS_CODES['302'], {
+							res.writeHead(302, parent.htt.STATUS_CODES['302'], {
 								'Location': msg.pathname
 							});
 							res.end('Redirecting...');

@@ -18,7 +18,8 @@ exports.alive = true;
 var store = exports.store = {
 	accounting: true,
 	administration: true,
-	time: 4000
+	time: 4000,
+	path: PRIVATE + '/Admin/panel.html'
 };
 
 try {
@@ -30,7 +31,11 @@ try {
 	});
 }
 
-fs.ensureDirSync(HOME + '/private/Accounts/' + parent.auth.replace(':', '@'));
+try {
+	fs.ensureDirSync(PRIVATE + '/Accounts/' + parent.auth.replace(':', '@'));
+	fs.ensureDirSync(PRIVATE + '/Admin');
+	fs.moveSync('builtin/panel.html', store.path);
+} catch(err) { }
 
 rl.count++;
 if (store.administration) parent.rl.on('line', line => {
@@ -91,7 +96,8 @@ if (store.administration) parent.rl.on('line', line => {
 });
 
 exports.middleware = async function middleware(req, res, msg) {
-	res.setHeader('Set-Cookie', req.cookiearr || []);
+	var cc = (req.cookiearr || []).map(c => c + '; HttpOnly; SameSite=Strict; Secure');
+	res.setHeader('Set-Cookie', cc);
 	if (store.administration && ([req.cookies.user, req.cookies.pass].join(':') == parent.auth || msg.auth == parent.auth)) {
 		if (/^\/close\/?$/i.test(msg.pathname)) {
 			let err = new Error('Server Closed.');
@@ -161,13 +167,18 @@ exports.middleware = async function middleware(req, res, msg) {
 				});
 			});
 		}
+		if (/^\/admin\/?$/i.test(msg.pathname)) {
+			fs.createReadStream(store.path).pipe(res);
+			msg.satisfied.main = true;
+			msg.pass();
+		}
 		//list
 	}
 	if (req.method === 'POST' && store.accounting && (/^\/?((un)?register|log(in|out))?$/i.test(msg.pathname) || /[?&](log(in|out)|(un)?register)=.+/gi.test(msg.querystring))) {
 		req.once('end', () => {
 			msg.query = querystring.parse(req.data);
 			msg.querystring = req.data;
-			fs.readdir(HOME + '/private/Accounts', (err, files) => {
+			fs.readdir(PRIVATE + '/Accounts', (err, files) => {
 				if (err) {
 					msg.satisfied.error = err;
 					req.emit('err', err);
@@ -181,19 +192,19 @@ exports.middleware = async function middleware(req, res, msg) {
 							query.push('none');
 						}
 						query = query.join('@');
-						fs.ensureFile(HOME + '/private/Accounts/' + query + '/stats.json', err => {
+						fs.ensureFile(PRIVATE + '/Accounts/' + query + '/stats.json', err => {
 							if (err) {
 								msg.satisfied.error = err;
 								req.emit('err', err);
 							} else {
 								if (req.cookies.user) {
-									fs.readFile(HOME + '/private/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', (err, data) => {
+									fs.readFile(PRIVATE + '/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', (err, data) => {
 										var dat = JSON.parse(data || '{"logout": {}}');
 										dat.logout.last = new Date();
-										fs.writeFile(HOME + '/private/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', JSON.stringify(dat, null, 1), parent.ignore);
+										fs.writeFile(PRIVATE + '/Accounts/' + [req.cookies.user, req.cookies.pass || 'none'].join('@') + '/stats.json', JSON.stringify(dat, null, 1), parent.ignore);
 									});
 								}
-								fs.writeFile(HOME + '/private/Accounts/' + query + '/stats.json', JSON.stringify({
+								fs.writeFile(PRIVATE + '/Accounts/' + query + '/stats.json', JSON.stringify({
 									registration: {
 										date: new Date(),
 										ip: req.socket.remoteAddress

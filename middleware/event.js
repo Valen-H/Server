@@ -41,9 +41,9 @@ exports.middleware = function middleware(req, res, msg) {
 			fs.readFile(store.page, (err, data) => {
 				if (err) return console.error(err);
 				res.end(data.toString()
-				.replace(/&&code&&/gi, msg.satisfied.error.errno || msg.satisfied.error.code)
+				.replace(/&&code&&/gi, msg.satisfied.error.code)
 				.replace(/&&msg&&/gi, msg.satisfied.error.message)
-				.replace(/&&type&&/gi, msg.satisfied.error.type || msg.satisfied.error.code || 'Event')
+				.replace(/&&type&&/gi, msg.satisfied.error.type || msg.satisfied.error.errno || 'Event')
 				.replace(/&&col&&/gi, msg.satisfied.error.color || 'red')
 				.replace(/&&back&&/gi, msg.satisfied.error.back || 'false')
 				.replace(/&&intr&&/gi, msg.satisfied.error.intr || parent.time)
