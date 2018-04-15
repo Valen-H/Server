@@ -4,6 +4,7 @@ chalk = parent.chalk,
 PUBLIC = parent.home + '/public',
 PRIVATE = parent.home + '/private',
 BUILTIN = parent.home + '/builtin',
+socket = exports.socket = require('socket.io'),
 url = parent.url,
 HOME = parent.home,
 rl = parent.rl,
@@ -18,12 +19,13 @@ var store = exports.store = {
 	enabled: true,
 	pingTimeout: 30000,
 	pingInterval: 5000,
-	cookie: true
+	cookie: true,
+	logs: true
 },
 io = {},
 adm = exports.adm = {},
 list;
-exports.io = {};
+parent.io = exports.io = {};
 
 try {
 	fs.ensureFileSync(STORE);
@@ -39,6 +41,7 @@ fs.copySync(HOME + '/node_modules/socket.io-client/dist/socket.io.js', PUBLIC + 
 fs.copySync(HOME + '/node_modules/socket.io-client/dist/socket.io.js.map', PUBLIC + '/JS/socket.io.js.map');
 
 rl.count++;
+rl.comps = rl.comps.concat(['admin']);
 rl.on('line', list = line => {
 	if (rl.block.socket || rl.handled) {
 		rl.tick();
@@ -71,16 +74,16 @@ rl.on('line', list = line => {
 		} else {
 			io.to('admin').send(line, true);
 		}
-	} else if (/^count$/i.test(line)) {
-		console.log(chalk.white.dim(Object.keys(exports.io.sockets).length));
 	}
 	rl.tick();
 });
 
+parent.server.once('close', () => io.to('admin').send('location.reload()', true));
+
 exports.middleware = function middleware(req, res, msg) {
 	if (store.enabled) {
 		exports.alive = store.enabled = false;
-		exports.io = parent.socket(parent.server, {
+		parent.io = exports.io = socket(parent.server, {
 			pingTimeout: store.pingTimeout,
 			pingInterval: store.pingInterval,
 			cookie: store.cookie
@@ -91,12 +94,16 @@ exports.middleware = function middleware(req, res, msg) {
 			soc.handshake.cookies = {};
 			soc.handshake.cookiearr = (soc.handshake.headers.cookie || ';').split(';').filter(i => i).flt();
 			(soc.handshake.headers.cookie || ';').split(';').filter(cook => cook.includes('=')).forEach(cookie => soc.handshake.cookies[cookie.split('=')[0].trim()] = cookie.split('=')[1]);
-			if ([soc.handshake.cookies.user, soc.handshake.cookies.pass].join(':') == parent.auth) {
+			if (parent.sessions[soc.handshake.cookies.session] == parent.auth) {
 				console.log(chalk`{grey ${soc.handshake.address} connected as Admin.}`);
 				soc.on('message', (...msg) => {
 					try {
-						console.info(chalk.dim.green(`Through socket : '${msg}'`));
-						console.log(eval("'use strict';\n" + msg[0].toString()));
+						if (store.logs) {
+							console.info(chalk.dim.green(`Through socket : '${msg}'`));
+							console.log(eval("'use strict';\n" + msg[0].toString()));
+						} else {
+							eval(msg[0].toString());
+						}
 					} catch(err) {
 						console.error(chalk.bgRed(err));
 					}
@@ -119,17 +126,19 @@ exports.middleware = function middleware(req, res, msg) {
 				}
 				so(comp);
 			});
+			soc.to('admin').broadcast.volatile.emit('joined', Object.keys(io.sockets).length);
 			soc.on('join', room => {
-				soc.broadcast.volatile.emit('joined', Object.keys(io.sockets).length, room);
+				soc.to('main').broadcast.volatile.emit('joined', Object.keys(io.sockets).length, room);
 				soc.join(room);
 				console.log(chalk`{grey ${soc.handshake.address} joined ${room}.}`);
 			});
 			soc.on('leave', room => {
-				soc.broadcast.volatile.emit('left', Object.keys(io.sockets).length, room);
+				soc.to('main').broadcast.volatile.emit('left', Object.keys(io.sockets).length, room);
 				soc.leave(room);
 				console.log(chalk`{grey ${soc.handshake.address} left ${room}.}`);
 			});
 		}).on('disconnect', soc => {
+			soc.broadcast.volatile.emit('left', Object.keys(io.sockets).length);
 			console.log(chalk`{grey ${soc.handshake.address} disconnected.\n${new Date}}`);
 		});
 		(adm = exports.adm = exports.io.of('/admin')).on('connect', func).on('disconnect', soc => {

@@ -32,7 +32,7 @@ var reqarr = exports.reqarr = [], reqlist = {};
 exports.middleware = function middleware(req, res, msg) {
 	if (reqlist[req.socket.remoteAddress] && (req.method == 'POST' || (req.method == 'GET' && !req.headers.referer))) {
 		let err = new Error('Cooldown...');
-		err.code = 'ECOOL';
+		err.code = 'ECOOL'; //ETIMEDOUT
 		msg.satisfied.error = err;
 		req.emit('err', err);
 		req.destroy(err);
