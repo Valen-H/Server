@@ -80,6 +80,8 @@
     * **adm[in] message** -> *Eval*s message to all clients connected to `admin` *room*.  
     * **adm[in] rel[oad]** -> Reloads all clients connected to `admin` *room*.  
     * **adm[in] kick** -> Kicks (to `about:blank`) all clients connected to `admin` *room*.  
+  * **color** -> Toggle console colors.  
+  * **cert** -> Create selfsigned SSL certificates on root.  
     
 > `npm test` will install the `serve` shortcut binary.  
   

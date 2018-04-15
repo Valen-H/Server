@@ -14,11 +14,10 @@ string_decoder = exports.string_decoder = require('string_decoder'),
 querystring = exports.querystring = require('querystring'),
 child_process = exports.child_process = require('child_process'),
 chalk = exports.chalk = require('chalk'),
-socket = exports.socket = require('socket.io'),
 stream = exports.stream = require('stream'),
 events = exports.event = require('events'),
 Console = exports.Console = require('console').Console,
-dgram = exports.dgram = require('dgram'),
+crypto = exports.crypto = require('crypto'),
 stripAnsi = chalk.strip = exports.stripAnsi = require('strip-ansi');
 
 http.globalAgent.options.rejectUnauthorized = false;
@@ -104,7 +103,7 @@ cert = fs.readFileSync('cert.pem'),
 key = fs.readFileSync('private.pem'),
 ca = fs.readFileSync('clientcert.pem');
 
-log.write('\n ' + '-'.repeat(30) + ' \n');
+log.write('\n ' + '-'.repeat(process.stdout.columns - 2) + ' \n');
 
 var midnames = exports.midnames = [];
 var middlewares = exports.middlewares = [], imid,
@@ -119,10 +118,19 @@ if (!fs.readdirSync(HOME + '/middlewares').length) {
 	fs.copySync('middleware', HOME + '/middlewares');
 }
 
-const rl = exports.rl = readline.createInterface({input: process.stdin, output: process.stdout});
+const rl = exports.rl = readline.createInterface({
+	input: process.stdin,
+	output: process.stdout,
+	prompt: AUTH + '>',
+	completer: function(line) {
+		rl.comps = rl.comps.sort().flt();
+		return [rl.comps.filter(cmp => (cmp.includes(line) && line.length > 5) || cmp.startsWith(line)), line];
+	}
+});
 rl.handled = rl.adm = rl.comm = rl.exe = false;
 rl.block = {};
 rl.count = 1;
+rl.comps = ['#', 'eval', 'reload', 'restart', 'quit', 'exit', 'clear', 'clean', 'uptime', 'cert', 'nocolors', 'colors'];
 rl.tick = function() {
 	if (--rl.count <= 0) {
 		rl.count = rl.listenerCount('line');
@@ -131,6 +139,7 @@ rl.tick = function() {
 	}
 	return false;
 };
+rl.tick();
 rl.on('line', exports.line = async line => {
 	if (rl.block.main || rl.handled) {
 		rl.tick();
@@ -160,7 +169,7 @@ rl.on('line', exports.line = async line => {
 		process.exit();
 	} else if (/^clea[nr]$/i.test(line)) {
 		rl.handled = true;
-		console.log('\n'.repeat(50));
+		console.log('\n'.repeat(process.stdout.rows * 2));
 		console.clear();
 		fs.truncate(LOG, () => {
 			console.log(chalk`Logs erased.\n{grey ${new Date()}}`);
@@ -207,15 +216,17 @@ rl.on('line', exports.line = async line => {
 			} else {
 				code = chalk`{cyan.dim ${code}}`;
 			}
-			console.log(chalk`{grey.dim.bgYellow.bold child process exited with code ${code}.}`);
+			console.log(chalk`\n{grey.dim.bgYellow.bold child process exited with code ${code}.}`);
 			rl.resume();
 		});
 		rl.pause();
 	} else if (/^cert$/i.test(line)) {
+		rl.handled = true;
 		console.log(chalk.cyanBright.dim('Forging...'));
 		await require('./lib/certs.js')();
 		console.log(chalk.yellow.dim('Certificates created.'));
-	} else if (/^(no)?col(ou?r)?$/i.test(line)) {
+	} else if (/^(no)?col(ou?rs?)?$/i.test(line)) {
+		rl.handled = true;
 		chalk.enabled = !/^no/i.test(line);
 		var cols = ['red', 'green', 'blue', 'cyan', 'magenta', 'yellow'];
 		var text = `Colors ${chalk.enabled ? 'Enabled' : 'Disabled'}.`;
@@ -234,7 +245,8 @@ watch = exports.watch = fs.watch(HOME, (type, file) => {
 
 reload = exports.reload = loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares() {
 	middlewares = [];
-	rl.removeAllListeners()
+	rl.removeAllListeners();
+	rl.comps = ['#', 'eval', 'reload', 'restart', 'quit', 'exit', 'clear', 'clean', 'uptime', 'cert', 'nocolors', 'colors'];
 	rl.count = 1;
 	rl.on('line', exports.line);
 	fs.readdirSync(HOME + '/middlewares').flt().filter(mwar => mwar.endsWith('.js') && !mwar.startsWith('d-') && (typeof WARES === 'symbol' || WARES.includes(mwar.replace(/\.js$/, '')))).flt().forEach(mwar => {
@@ -308,7 +320,7 @@ const server = exports.server = http.createServer({
 	ca: [fs.readFileSync('clientcert.pem')],
 	rejectUnauthorized: false,
 	requestCert: true
-}, (req, res) => {
+}, async (req, res) => {
 	req.url = querystring.unescape(req.url);
 	var msg = req.msg = url.parse(req.url, true);
 	msg.satisfied = {
@@ -328,28 +340,33 @@ const server = exports.server = http.createServer({
 	res.msg = msg;
 	msg.req = req;
 	msg.res = res;
-	req.cookies = {};
 	req.dec = new string_decoder.StringDecoder();
 	req.end = false;
-	req.data = '';
-	req.on('data', data => req.data += req.dec.write(data));
-	req.once('end', () => {
-		req.end = true;
-		req.data += req.dec.end();
-		req.data = querystring.unescape(req.data);
-	});
+	req.data = await (async () => {
+		return new Promise((rsl, rjc) => {
+			req.data = '';
+			req.on('data', data => req.data += req.dec.write(data));
+			req.once('end', () => {
+				req.end = true;
+				req.data += req.dec.end();
+				req.data = querystring.unescape(req.data);
+				rsl(req.data);
+			});
+		});
+	})();
+	req.cookies = {};
 	req.cookiearr = (req.headers.cookie || ';').split(';').filter(i => i).flt();
-	(req.headers.cookie || ';').split(';').filter(cook => cook.includes('=')).forEach(cookie => req.cookies[cookie.split('=')[0].trim()] = cookie.split('=')[1]);
-	setTimeout((req, res, msg) => {
+	req.cookiearr.filter(cook => cook.includes('=')).forEach(cookie => req.cookies[cookie.split('=')[0].trim()] = cookie.split('=')[1]);
+	setTimeout(async (req, res, msg) => {
 		if (!msg.satisfied.main && !res.finished) {
 			let err = new Error('Connection timed out.');
-			err.code = 'ETIME';
+			err.code = 'ETIMEDOUT';
 			msg.satisfied.error = err;
 			req.emit('err', err);
 		}
 	}, TIME, req, res, msg);
 	msg.middle = - 1;
-	msg.pass = function() {
+	msg.pass = async function() {
 		var [req, res, msg] = [this.req, this.res, this];
 		try {
 			if (middlewares[this.middle + 1]) {
@@ -366,8 +383,8 @@ const server = exports.server = http.createServer({
 			req.emit('err', err);
 		}
 	};
-	res.pass = req.pass = function() {
-		this.msg.pass();
+	res.pass = req.pass = async function() {
+		return this.msg.pass();
 	};
 	msg.pass();
 }).listen(PORT, BCLOG).on('error', err => {
