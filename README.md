@@ -12,6 +12,7 @@
     * **/down.txt** -> Server close Date.  
     * **Accounts/** -> Account data.  
       * **Accounts/xx@yy/stats.json** -> Account info.  
+    * **Admin/** -> Admin utils.  
   
 ## Environment  
   * **port** -> Server port. Defaults to `8080`.  
@@ -27,22 +28,36 @@
   * **event.js** -> Request event controlling module. Handles the `msg.satisfied.event = {color,code,message,type,syscall,errno,back,intr,redirect,alert,times}` object. `request.emit('evn', err)`. Config :  
     * **page** -> Template page to serve event on (Default : `builtin/event.html`). `&&type&&` -> event type, `&&msg&&` -> event message, `&&col&&` -> event color, `&&code&&` -> event code, `&&list&&` -> directory contents, `&&back&&` -> boolean whether to redirect to previous page, `&&redi&&` -> redirection url, `&&ale&&` -> user alert, `&&intr&&` -> redirection interval, `&&times&&` -> number of pages to backtrack.  
   * **command.js** -> Contains commands which can be executed by respective url or console command, like :  
-    * `https://localhost:port/close`  
-    * `https://localhost:port/reload`  
-    * `https://localhost:port/restart`  
-    * POST : `https://localhost:port?login=admin:root&from=reg`  
-    * POST : `https://localhost:port?unregister=admin:root`  
-    * POST : `https://localhost:port?mode=register&user=admin&pass=root`  
+    * `https://localhost:port/close` -> Close server.  
+    * `https://localhost:port/reload` -> Reload middlewares.  
+    * `https://localhost:port/restart` -> Restart server (Sessions are cleared!).  
+    * `https://localhost:port/admin` -> Admin panel.  
+    * `https://localhost:port/eval?eval=code` -> Evaluate JavaScript.  
+    * `https://localhost:port/ban?user=name` -> Ban account.  
+    * POST : `https://localhost:port?register=user:pass` or `https://localhost:port?mode=register&user=username&pass=password`  
+    * POST : `https://localhost:port?unregister=user:pass` or `https://localhost:port?mode=unregister&user=username&pass=password`  
+    * POST : `https://localhost:port?login=user:pass` or `https://localhost:port?mode=login&user=username&pass=password`  
     * POST (cookie-job) : `https://localhost:port?logout`  
-  this middleware controls a `private/Accounts` folder with registered server accounts to be controlled by ***POST*** `register=account:password, unregister=account:password, login=account:password, logout=true (affects currently loged-in account)` or `mode=register|login|logout|unregister, user=user, pass=password` requests in that order. It automatically generates a `middleware/command.json` file for further setting (as other modules), the following all default to `true` :  
+  this middleware controls a `private/Accounts` folder with registered server accounts to be controlled by requests in the above order and a `private/Admin` which contains the admin panel. It automatically generates a `middleware/command.json` file for further setting (as other modules), the following all default to `true` :  
     * **administration** -> Whether administration GET commands will be enabled (`close?auth=admin:pass, restart?auth=admin:pass, reload?auth=admin:pass, eval?auth=admin:pass, ban?auth=admin:pass&user=name`). `auth` parameter is optional for logged-in admin.  
     * **accounting** -> Whether the inner POST accounting system will be enabled (`register, unregister, login, logout`).  
     * **time** -> Redirection intervals (Defaults to 4000).  
-    * **page** -> Administration page controlled by *socket.js*, served under GET `/admin`.  
+    * **page** -> Administration panel location controlled by *socket.js*.  
   * **socket.js** -> Contains a realtime websocket module (`socket.io.js`) that offers administration capabilities to the admin and utilities to the user. This module in **co-operation** with *command.js* controls a page (`private/Admin/panel.html`) with administration utilities.  
-    * **Namespaces** : `/main` -> mainpage util.  
-    * **Channels** : `admin` -> admin command channel, `main` -> main channel.  
-    * **Commands** : *Admin* : `socket.emit('close'), socket.emit('restart'), socket.emit('reload'), socket.send('"eval"')`.  
+    * **Namespaces>Channels** :  
+      * **/main** :  
+        * **main** -> Main channel.  
+        * **admin** -> Admin beacon.  
+      * **/admin** :  
+        * **admin** -> Admin beacon.  
+        * **logs** -> Logs beacon.  
+    * **Commands** :  
+      * **Client** :  
+        * **admin** -> `socket.emit('close'), socket.emit('restart'), socket.emit('reload'), socket.send('"eval"')`.  
+        * **main** -> `socket.emit('join', 'main'), socket.emit('join', 'admin')`  
+      * **Server** :  
+        * **admin** -> `socket.to('logs').send('logdata')`.  
+        * **main** -> `socket.emit('joined', 'main'), socket.emit('left', 'admin')`  
   * **fix.js** -> Url autocorrection utility, e.g: suppose our server has a file called `file.htm` but the user requests for `FILE.html`, the server assumes and corrects the url as long as request content has not already been served. Modes (declared in `middlewares/fix.json`) :   
     * **extreme** -> Corrects filenames, direnames and upper/super-dirnames with assumptions.  
     * **extended** -> Corrects filenames, direnames with assumptions.  
@@ -94,7 +109,7 @@
   * If any `.no` file contains the word `ALL` **on one line** then all contents of that directory are affected.  
   * All custom middlewares must follow the following pattern :  
     ```javascript
-    const parent = module.parent.exports,
+	const parent = module.parent.exports,
 	fs = parent.fs,
 	chalk = parent.chalk,
 	PUBLIC = parent.home + '/public',
@@ -104,14 +119,14 @@
 	url = parent.url,
 	STORE = url.parse(module.filename).directory + '/midstore/' + url.parse(module.filename).filename + '.json',
 	rl = parent.rl;
-    
-    exports.name = 'middleware';
-    exports.after = ['command'];
-    exports.before = ['end'];
-    exports.alive = true;
-    
-    var store = exports.store = {
-    	exclude: []
+	
+	exports.name = 'middleware';
+	exports.after = ['command'];
+	exports.before = ['end'];
+	exports.alive = true;
+	
+	var store = exports.store = {
+		exclude: []
 	};
 	
 	try {
@@ -122,24 +137,24 @@
 			if (!err) console.info(chalk`{green ${module.filename} Initialized.}`);
 		});
 	}
-    
-    exports.middleware = function middleware(request, response, message) {
-    	if (error) {
-    		message.satisfied.error = error;
-    		request.emit('err', error); //event.js
-    		exports.remove(); //remove middleware from list
-    	} else {
-    		message.satisfied.main = true;
-    		response.write('');
-    		message.pass();
-    	}
-    	return message.satisfied;
-    };
-    
-    exports.remove = function(bool = !exports.alive) {
-    	return exports.alive = !!bool;
-    };
-    ```  
+	
+	exports.middleware = function middleware(request, response, message) {
+		if (error) {
+			message.satisfied.error = error;
+			request.emit('err', error); //event.js
+			exports.remove(); //remove middleware from list
+		} else {
+			message.satisfied.main = true;
+			response.write('');
+			message.pass();
+		}
+		return message.satisfied;
+	};
+	
+	exports.remove = function(bool = !exports.alive) {
+		return exports.alive = !!bool;
+	};
+	```  
   * `message.satisfied` is a property (object) that holds several other properties used by middlewares to determine their operations. Like : `main` -> whether the response is being served, `event` -> whether an error or event occured (`event.js`).  
   
 > ***All environmental variables can be placed inside `.npmrc` instead!***  
