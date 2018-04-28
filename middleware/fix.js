@@ -68,16 +68,27 @@ exports.middleware = function middleware(req, res, msg) {
 				fixes.forEach(fix => {
 					nar.push('-d-' + fix);
 					nar.push('-f-' + fix);
+					nar.push('-t-' + fix);
+					nar.push('-d-t-' + fix);
+					nar.push('-f-t-' + fix);
+					nar.push('-t-f-' + fix);
+					nar.push('-t-d-' + fix);
 					nar.push('-d-f-' + fix);
 					nar.push('-f-d-' + fix);
+					nar.push('-t-f-d-' + fix);
+					nar.push('-t-d-f-' + fix);
+					nar.push('-f-t-d-' + fix);
+					nar.push('-f-d-t-' + fix);
+					nar.push('-d-f-t-' + fix);
+					nar.push('-d-t-f-' + fix);
 				});
 				fixes = nar.flt();
 				if (store.strength === 'extended' || store.strength === 'extreme') {
 					try {
 						var files = await dir(PUBLIC + msg.directory);
 						files.filter(file =>
-						msg.file.includes(file) ||
-						msg.file.toUpperCase().includes(file.toUpperCase()) ||
+						msg.fileraw.includes(file) ||
+						msg.fileraw.toUpperCase().includes(file.toUpperCase()) ||
 						file.includes(msg.filename) ||
 						file.toUpperCase().includes(msg.filename.toUpperCase())
 						).forEach(i => fixes.push(i));
@@ -87,10 +98,10 @@ exports.middleware = function middleware(req, res, msg) {
 				tick();
 				function tick() {
 					if (counter >= fixes.length) return msg.pass();
-					fs.stat(parent.home + '/public' + msg.pathname.replace(msg.file, fixes[counter]), (err, stat) => {
+					fs.stat(parent.home + '/public' + msg.pathname.replace(msg.fileraw, fixes[counter]), (err, stat) => {
 						if (err) return tick(++counter);
-						var temp = msg.pathname.replace(msg.file, fixes[counter++]);
-						msg = Object.assign(url.parse(req.url = req.url.replace(msg.pathname, temp), true), msg);
+						var temp = msg.pathname.replace(msg.fileraw, fixes[counter++]);
+						msg = Object.assign(msg, url.parse(req.url = req.url.replace(msg.pathname, temp), true));
 						if (!err && stat.isDirectory() && !msg.pathname.endsWith('/')) {
 							msg.pathname += '/';
 							res.writeHead(302, parent.htt.STATUS_CODES['302'], {
@@ -107,7 +118,7 @@ exports.middleware = function middleware(req, res, msg) {
 	} else {
 		msg.pass();
 	}
-	return req.satisfied;
+	return msg.satisfied;
 };
 
 const dir = exports.dir = async function dir(dr) {

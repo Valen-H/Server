@@ -36,6 +36,15 @@ exports.middleware = function middleware(req, res, msg) {
 		fs.stat(PUBLIC + msg.pathname, async (err, stat) => {
 			if (!err && stat.isFile() && !msg.pathname.includes('-d-') && !msg.filename.startsWith('.no') && !store.exclusions.some(exc => msg.pathname.startsWith(exc)) && !(await readind(msg.pathname))) {
 				fs.readFile(PUBLIC + msg.pathname, async (err, data) => {
+					/*
+						is file
+						File exists
+						does not start with .no
+						does not include -d-
+						does not belong to exclusions
+						does not belong to .noind
+					*/
+					
 					const mimes = exports.mimes = {
 						bin: 'application/octet-stream',
 						htm: 'text/html',
@@ -56,51 +65,84 @@ exports.middleware = function middleware(req, res, msg) {
  	 				  js: 'application/javascript',
  	 				  json: 'application/json',
  	 				  ico: 'image/x-icon'
-					};
+					}; //obsolete?
 					if (err) {
-						msg.satisfied.error = err;
 						req.emit('err', err);
 					} else {
+						if ((await readdir(PUBLIC + msg.directory)).includes(msg.filename + '.js')) {
+							delete require.cache[require.resolve(PUBLIC + msg.directory + '/' + msg.filename + '.js')];
+							if (msg.extension != 'js' && !await require(PUBLIC + msg.directory + '/' + msg.filename + '.js')(msg)) {
+								let err = new Error('No such file or directory.');
+								err.code = 'ENOENT';
+								req.emit('err', err);
+								return;
+							}
+						}
+						//Execute js file on same dir with same name
+						
 						if ((mimes[msg.extension || 'html'] || 'text/plain').startsWith('text') && store.templateDirs.some(exc => msg.pathname.startsWith(exc))) {
-							var trns = readtmp(PUBLIC + msg.directory, msg.file);
+							var trns = readtmp(PUBLIC + msg.directory, msg.fileraw);
 							res.end(sendtmp(data, trns, req, res, msg), 'buffer');
 						} else {
 							fs.createReadStream(PUBLIC + msg.pathname).pipe(res);
 						}
+						//if not text file, pass raw
+						
 					}
 					msg.satisfied.main = true;
 					msg.pass();
 				});
 			} else if (err || msg.pathname.includes('-d-') || msg.filename.startsWith('.no') || (await readind(msg.pathname)) || store.exclusions.some(exc => msg.pathname.startsWith(exc))) {
+				/*
+					File/Folder does not exist or
+					starts with .no or
+					includes -d- or
+					belongs to exclusions or
+					is in .noind
+				*/
+				
 				err = err || new Error('No such file or directory.');
 				err.code = err.code || 'ENOENT';
-				msg.satisfied.error = err;
 				req.emit('err', err);
 			} else if (stat.isDirectory()) {
-				fs.readdir(PUBLIC + msg.pathname, (err, files) => {
+				//is folder
+				fs.readdir(PUBLIC + msg.pathname, async (err, files) => {
 					var out = true;
 					if (files.includes(parent.index + '.js')) {
-						out = require(PUBLIC + msg.pathname + parent.index + '.js')(req, res, msg);
+						delete require.cache[require.resolve(PUBLIC + msg.directory + parent.index + '.js')];
+						out = await require(PUBLIC + msg.directory + parent.index + '.js')(msg);
 					}
+					//Execute index js of dir
+					
+					if (msg.extension != 'js' && files.includes(msg.filename + '.js')) {
+						delete require.cache[require.resolve(PUBLIC + msg.directory + '/' + msg.filename + '.js')];
+						out = await require(PUBLIC + msg.directory + '/' + msg.filename + '.js')(msg);
+					}
+					//Execute js file on same dir with same name
+					
 					var tp;
 					if (out && (files.includes(parent.index + (tp = '.html')) || files.includes(parent.index + (tp = '.htm'))) && !files.includes('.noind')) {
+						//if contains index, out and not contain .noind
 						fs.readFile(PUBLIC + msg.pathname + parent.index + tp, async (err, data) => {
 							if (err) {
-								msg.satisfied.error = err;
 								req.emit('err', err);
+								//if no index - contradict
 							} else if (store.templateDirs.some(exc => msg.pathname.startsWith(exc))) {
-								var trns = readtmp(PUBLIC + msg.directory, msg.file);
+								var trns = readtmp(PUBLIC + msg.directory, msg.fileraw);
 								res.end(sendtmp(data, trns, req, res, msg), 'buffer');
+								//if in templateDirs
 							} else {
 								fs.createReadStream(PUBLIC + msg.pathname + parent.index + tp).pipe(res);
+								//raw
 							}
 							msg.satisfied.main = true;
 							msg.pass();
 						});
-					} else if (files.includes('.noind')) {
+					} else if (out && files.includes('.noind')) {
+						//if .noind and out
 						fs.readFile(PUBLIC + msg.pathname + '.noind', (err, data) => {
 							if (err) {
-								msg.satisfied.error = err;
+								//no .noind - contradict
 								req.emit('err', err);
 								return;
 							}
@@ -109,31 +151,37 @@ exports.middleware = function middleware(req, res, msg) {
 								if (!err && stat.isFile() && !file.includes(PUBLIC + msg.pathname + parent.index + tp) && !file.includes('ALL')) {
 									fs.readFile(PUBLIC + msg.pathname + parent.index + tp, (err, data) => {
 										if (err) {
-											msg.satisfied.error = err;
 											req.emit('err', err);
+											//if no index
 										} else if (store.templateDirs.some(exc => msg.pathname.startsWith(exc))) {
-											var trns = readtmp(PUBLIC + msg.directory, msg.file);
+											var trns = readtmp(PUBLIC + msg.directory, msg.fileraw);
 											res.end(sendtmp(data, trns, req, res, msg), 'buffer');
+											//if in templateDirs
 										} else {
 											fs.createReadStream(PUBLIC + msg.pathname + parent.index + tp).pipe(res);
+											//raw
 										}
 										msg.satisfied.main = true;
 										msg.pass();
 									});
 								} else {
+									//if is dir
 									msg.pass();
 								}
 							});
 						});
 					} else {
+						//if not contains index and .noind), or false out
 						msg.pass();
 					}
 				});
 			} else {
+				//contradict
 				msg.pass();
 			}
 		});
 	} else {
+		//served
 		msg.pass();
 	}
 	return msg.satisfied;
@@ -169,9 +217,17 @@ readind = exports.readind = async function readind(file) {
 sendtmp = exports.sendtmp = function sendtmp(data, trns = true, req, res, msg) {
 	return data.toString().replace(/<&(.|\n)*?&>/gm, mt => {
 		try {
-			return trns ? eval("'use strict';\n" + mt.replace(/[<>&]/g, '')) : mt;
-		} catch(err) {		
+			return trns ? eval("'use strict';\n" + mt.replace(/(^<&|&>$)/g, '')) : mt;
+		} catch(err) {
 			return err;
 		}
+	});
+},
+readdir = exports.readdir = async function readdir(dir) {
+	return new Promise((rsl, rjc) => {
+		fs.readdir(dir, (err, files) => {
+			if (err) rjc(err);
+			rsl(files);
+		});
 	});
 };

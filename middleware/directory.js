@@ -32,27 +32,37 @@ try {
 
 exports.middleware = function middleware(req, res, msg) {
 	if (!msg.satisfied.main && !msg.pathname.includes('-d-') && !msg.satisfied.event && !store.exclusions.some(exc => msg.pathname.startsWith(exc))) {
-		var e = false;
 		fs.stat(PUBLIC + msg.pathname, (err, stat) => {
 			if (!err && stat.isDirectory()) {
+				//is dir and no err
 				fs.readdir(PUBLIC + msg.pathname, (err, files) => {
 					files = files.filter(file => !file.includes('-d-'));
+					//exclude -d-'s
 					if (err) {
+						//contradict
 						msg.satisfied.error = err;
 						req.emit('err', err);
 					} else if (files.includes('.nodir')) {
+						//if .noind
 						fs.readFile(PUBLIC + msg.pathname + '.nodir', (err, data) => {
 							if (err) {
-								msg.satisfied.error = err;
+								//no .noind - contradict
 								req.emit('err', err);
 								return;
 							}
 							let file = (data.toString() || 'ALL').split('\n');
 							var temp = "\t<li value='&t'><a href='&t'>&t</a></li>\n";
 							var list = [];
-							files.filter(fil => !(file.includes(fil) || file.includes('ALL') || fil.startsWith('.no'))).forEach(file => {
+							files.filter(fil => !(file.includes(fil) || file.includes('ALL') || fil.startsWith('.no') || !file.length)).forEach(file => {
 								list.push(temp.replace(/&t/gi, file));
 							});
+							if (!list.length) {
+								let err = new Error('No such file or directory.');
+								err.code = 'ENOENT';
+								req.emit('err', err);
+								return;
+							}
+							//if empty list
 							fs.readFile(store.page, (err, data) => {
 								if (err) {
 									msg.satisfied.error = err;
@@ -65,13 +75,16 @@ exports.middleware = function middleware(req, res, msg) {
 							});
 						});
 					} else {
+						//if no .noind
 						var temp = "\t<li value='&t'><a href='&t'>&t</a></li>\n";
 						var list = [];
-						files.filter(file => !file.startsWith('.no')).forEach(file => {
+						files.filter(file => !(file.startsWith('.no') || file.includes('-d-'))).forEach(file => {
 							list.push(temp.replace(/&t/gi, file));
 						});
+						//allows empty list, not globally hidden, just excluded -d- and .no elements.
 						fs.readFile(store.page, (err, data) => {
 							if (err) {
+								//err in page
 								msg.satisfied.error = err;
 								req.emit('err', err);
 								return;
@@ -83,14 +96,30 @@ exports.middleware = function middleware(req, res, msg) {
 					}
 				});
 			} else if (err) {
-				msg.satisfied.error = err;
+				//no dir
 				req.emit('err', err);
 			} else {
+				//not dir
 				msg.pass();
 			}
 		});
 	} else {
+		//served, excluded or -d-
 		msg.pass();
 	}
 	return msg.satisfied;
 };
+
+/*
+	With .nodir
+	hides .nodir-included elements,
+	hides .no
+	empty list = ENOENT
+	
+	Without .nodir
+	hides .no,
+	hides -d-
+	
+*/
+
+//TODO: admin pass

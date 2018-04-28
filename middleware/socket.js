@@ -24,6 +24,7 @@ var store = exports.store = {
 },
 io = {},
 adm = exports.adm = {},
+chat = exports.chat = {},
 list;
 parent.io = exports.io = {};
 
@@ -37,8 +38,12 @@ try {
 }
 
 fs.ensureDirSync(PUBLIC + '/JS');
+fs.ensureDirSync(PUBLIC + '/CSS');
+fs.ensureDirSync(PUBLIC + '/HTML');
+fs.ensureDirSync(PUBLIC + '/SRC');
 fs.copySync(HOME + '/node_modules/socket.io-client/dist/socket.io.js', PUBLIC + '/JS/socket.io.js');
 fs.copySync(HOME + '/node_modules/socket.io-client/dist/socket.io.js.map', PUBLIC + '/JS/socket.io.js.map');
+fs.copySync(BUILTIN + '/chat.html', PUBLIC + '/chat.html');
 
 rl.count++;
 rl.comps = rl.comps.concat(['admin']);
@@ -78,8 +83,6 @@ rl.on('line', list = line => {
 	rl.tick();
 });
 
-parent.server.once('close', () => io.to('admin').send('location.reload()', true));
-
 exports.middleware = function middleware(req, res, msg) {
 	if (store.enabled) {
 		exports.alive = store.enabled = false;
@@ -90,11 +93,10 @@ exports.middleware = function middleware(req, res, msg) {
 		});
 		var func;
 		(io = exports.io.of('/main')).on('connect', func = soc => {
-			console.log(chalk`{grey ${soc.handshake.address} connected.\n${new Date}}`);
 			soc.handshake.cookies = {};
 			soc.handshake.cookiearr = (soc.handshake.headers.cookie || ';').split(';').filter(i => i).flt();
 			(soc.handshake.headers.cookie || ';').split(';').filter(cook => cook.includes('=')).forEach(cookie => soc.handshake.cookies[cookie.split('=')[0].trim()] = cookie.split('=')[1]);
-			if (parent.sessions[soc.handshake.cookies.session] == parent.auth) {
+			if (parent.sessions[(soc.handshake.cookies || {}).session] == parent.auth) {
 				console.log(chalk`{grey ${soc.handshake.address} connected as Admin.}`);
 				soc.on('message', (...msg) => {
 					try {
@@ -130,21 +132,35 @@ exports.middleware = function middleware(req, res, msg) {
 			soc.on('join', room => {
 				soc.to('main').broadcast.volatile.emit('joined', Object.keys(io.sockets).length, room);
 				soc.join(room);
-				console.log(chalk`{grey ${soc.handshake.address} joined ${room}.}`);
 			});
 			soc.on('leave', room => {
 				soc.to('main').broadcast.volatile.emit('left', Object.keys(io.sockets).length, room);
 				soc.leave(room);
-				console.log(chalk`{grey ${soc.handshake.address} left ${room}.}`);
+			});
+			soc.on('quit', () => {
+				delete parent.sessions[soc.handshake.cookies.session];
 			});
 		}).on('disconnect', soc => {
 			soc.broadcast.volatile.emit('left', Object.keys(io.sockets).length);
-			console.log(chalk`{grey ${soc.handshake.address} disconnected.\n${new Date}}`);
 		});
+		
 		(adm = exports.adm = exports.io.of('/admin')).on('connect', func).on('disconnect', soc => {
 			console.log(chalk`{grey Admin ${soc.handshake.address} disconnected.\n${new Date}}`);
 		});
 		parent.log.on('data', data => adm.to('logs').volatile.send(chalk.strip(data.toString())));
+		
+		(chat = exports.chat = exports.io.of('/chat')).on('connect', soc => {
+			soc.handshake.cookies = {};
+			soc.handshake.cookiearr = (soc.handshake.headers.cookie || ';').split(';').filter(i => i).flt();
+			(soc.handshake.headers.cookie || ';').split(';').filter(cook => cook.includes('=')).forEach(cookie => soc.handshake.cookies[cookie.split('=')[0].trim()] = cookie.split('=')[1]);
+			soc.broadcast.volatile.emit('connected', soc.handshake.address);
+			soc.on('message', (...p) => {
+				soc.volatile.send(...p, (parent.sessions[(soc.handshake.cookies || {}).session] || ':').split(':')[0] || soc.handshake.address);
+				soc.broadcast.volatile.send(...p, (parent.sessions[(soc.handshake.cookies || {}).session] || ':').split(':')[0] || soc.handshake.address);
+			});
+		}).on('disconnect', soc => {
+			soc.broadcast.volatile.emit('disconnected', soc.handshake.address);
+		});
 	}
 	msg.pass();
 	return msg.satisfied;

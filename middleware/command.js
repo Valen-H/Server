@@ -115,7 +115,8 @@ exports.middleware = async function middleware(req, res, msg) {
 	var cc = req.cookiearr.map(c => c + '; HttpOnly; SameSite=Strict; Secure; Expires=Session; path=/');
 	res.setHeader('Set-Cookie', cc.flt());
 	req.admin = sessions[req.cookies.session] == parent.auth;
-	req.acc = sessions[req.cookies.session];
+	req.acc = sessions[req.cookies.session] || 'null:none';
+	req.account = req.acc.split(':');
 	fs.ensureFile(PRIVATE + '/Accounts/' + AUTH.replace(':', '@') + '/stats.json', ignore);
 	if (store.administration && req.admin) {
 		if (/^\/close\/?$/i.test(msg.pathname)) {

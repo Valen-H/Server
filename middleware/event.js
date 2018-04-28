@@ -29,14 +29,17 @@ try {
 
 exports.middleware = function middleware(req, res, msg) {
 	req.once('err', err => {
-		req.event();
-	}).on('evn', err => {
-		req.event();
+		msg.satisfied.error = err;
+		req.event(err);
+	}).on('evn', evn => {
+		msg.satisfied.event = evn;
+		req.event(evn);
 	});
-	msg.event = req.event = function event() {
+	msg.event = req.event = function event(evn) {
 		var req = this.req || this,
 		msg = this.msg || this,
 		res = this.res;
+		msg.satisfied.event = evn;
 		if (msg.satisfied.event && !msg.satisfied.main) {
 			fs.readFile(store.page, (err, data) => {
 				if (err) return console.error(err);
