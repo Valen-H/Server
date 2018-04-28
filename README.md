@@ -44,11 +44,12 @@
     * **time** -> Redirection intervals (Defaults to 4000).  
     * **page** -> Administration panel location controlled by *socket.js*.  
   * **socket.js** -> Contains a realtime websocket module (`socket.io.js`) that offers administration capabilities to the admin and utilities to the user. This module in **co-operation** with *command.js* controls a page (`private/Admin/panel.html`) with administration utilities.  
-    * **Namespaces>Channels** :  
+    * **Namespaces > Channels** :  
       * **/main** :  
         * **main** -> Main channel.  
         * **admin** -> Admin beacon.  
       * **/admin** :  
+        * **main** -> Main channel.  
         * **admin** -> Admin beacon.  
         * **logs** -> Logs beacon.  
     * **Commands** :  

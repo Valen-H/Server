@@ -18,91 +18,57 @@ stream = exports.stream = require('stream'),
 events = exports.event = require('events'),
 Console = exports.Console = require('console').Console,
 crypto = exports.crypto = require('crypto'),
-stripAnsi = chalk.strip = exports.stripAnsi = require('strip-ansi');
+stripAnsi = chalk.strip = exports.stripAnsi = require('strip-ansi'),
+mod = exports.mod = require('./lib/nodemodule');
+
+if (require.main === module) {
+	mod.expose();
+}
 
 http.globalAgent.options.rejectUnauthorized = false;
 
-//----- TAKEN FROM nodemodule PROJECT
-Array.prototype.inherit = Array.prototype.inh = function(array) {
-	var arr = array.length > this.length ? array : this;
-	arr.forEach((function (val, ind, arr) {
-		this[ind] = array[ind];
-		while (this[this.length - 1] === undefined && this.length) {
-			this.pop();
-		}
-	}).bind(this));
-	return this;
-};
-Array.prototype.flt = function() {
-	var nar = [];
-	this.forEach(function (val) {
-		nar.add(val);
-	});
-	return this.inh(nar);
-};
-Array.prototype.add = function add(elm) {
-	if (!this.includes(elm)) {
-		this.push(elm);
-	}
-	return this;
-};
-Array.prototype.rmv = String.prototype.rmv = function (elm, n) {
-	var arr = this.split("");
-	if (typeof elm != "number" && this.indexOf(elm) < 0) {
-		return this;
-	}
-	arr.splice(typeof elm == "number" && !n ? elm : this.indexOf(elm), 1);
-	if (this instanceof String) {
-		return arr.join("");
-	}
-	return arr;
-};
-function rnd(frm, to, rd) {
-	if (frm === undefined) {
-		return "#" + ((Math.random() * 16777215) | 0).toString(16);
-	} else {
-		to = to === undefined ? frm : to;
-		frm = frm == to ? 0 : frm;
-		var tmp = [Math.min(frm, to), Math.max(frm, to)];
-		frm = tmp[0];
-		to = tmp[1];
-		return !rd ? (Math.random() * (to - frm) + frm) | 0 : (Math.random() * (to - frm) + frm);
-	}
-} //rnd
-Array.prototype.rnd = function (rd) {
-	var ind = rnd(0, this.length - 1);
-	if (rd) {
-		return ind;
-	}
-	return this[ind];
-};
-//----- WARNING
-
 delete console;
-console = this.console = global.console = new Console(new stream.Duplex({
+
+const logstream = exports.logstream = new stream.Duplex({
 	write(chunk, encoding, callback) {
+		if (!logstream.data) logstream.data = '';
+		logstream.data += chunk;
 		process.stdout.write(chunk, encoding);
 		log.write(chunk, encoding, callback);
+		process.stdout.emit('data', chunk, encoding, callback);
 		log.emit('data', chunk, encoding, callback);
+		logstream.emit('data', chunk, encoding, callback);
+	},
+	read(size) {
+		return logstream.data.slice(0, size);
 	}
-})); //EXPORTABLE
+});
 
-const PORT = exports.port = process.env.port || process.env.npm_config_port || 8080,
+console = this.console = global.console = new Console(logstream);
+console.stream = logstream;
+console.read = logstream.read;
+
+const PORT = exports.port = (process.env.port || process.env.npm_config_port || 8080) * 1,
 HOME = exports.home = fs.realpathSync(process.env.home || process.env.npm_config_home || process.cwd()),
 WARES = exports.wares = eval(process.env.wares || process.env.npm_config_wares || "Symbol('ALL')"),
 INDEX = exports.index = process.env.index || process.env.npm_config_index || 'index',
 TIME = exports.time = (process.env.time || process.env.npm_config_time || 6000) * 1,
 AUTH = exports.auth = process.env.auth || process.env.npm_config_auth || 'admin:root',
-BCLOG = exports.bclog = process.env.bclog || process.env.npm_config_bclog || 100;
+BCLOG = exports.bclog = (process.env.bclog || process.env.npm_config_bclog || 100) * 1,
+NAME = exports.name = process.env.name || process.env.npm_config_name || 'Server',
 LOG = exports.LOG = HOME + '/' + (process.env.log || process.env.npm_config_log || 'log.log'),
+ESC = exports.esc = String.fromCharCode(0x1B),
+DEL = exports.del = String.fromCharCode(8) + String.fromCharCode(0),
+TAB = exports.tab = String.fromCharCode(9),
 ignore = exports.ignore = (...p) => {},
 log = exports.log = fs.createWriteStream(LOG, {
 	flags: 'a+'
 }),
-cert = fs.readFileSync('cert.pem'),
-key = fs.readFileSync('private.pem'),
-ca = fs.readFileSync('clientcert.pem');
+cert = exports.cert = fs.readFileSync('cert.pem'),
+key = exports.key = fs.readFileSync('private.pem'),
+ca = exports.ca = fs.readFileSync('clientcert.pem');
 
+process.stdout.write(String.fromCharCode(0x1B) + '[7h'); //enable terminal text wrap
 log.write('\n ' + '-'.repeat(process.stdout.columns - 2) + ' \n');
 
 var midnames = exports.midnames = [];
@@ -123,14 +89,14 @@ const rl = exports.rl = readline.createInterface({
 	output: process.stdout,
 	prompt: AUTH + '>',
 	completer: function(line) {
-		rl.comps = rl.comps.sort().flt();
+		rl.comps = rl.comps.sort();
 		return [rl.comps.filter(cmp => (cmp.includes(line) && line.length > 5) || cmp.startsWith(line)), line];
 	}
 });
 rl.handled = rl.adm = rl.comm = rl.exe = false;
 rl.block = {};
 rl.count = 1;
-rl.comps = ['#', 'eval', 'reload', 'restart', 'quit', 'exit', 'clear', 'clean', 'uptime', 'cert', 'nocolors', 'colors'];
+rl.comps = ['#', 'eval', 'reload', 'restart', 'quit', 'exit', 'clean', 'uptime', 'cert', 'nocolors', 'colors', 'close'];
 rl.tick = function() {
 	if (--rl.count <= 0) {
 		rl.count = rl.listenerCount('line');
@@ -169,6 +135,7 @@ rl.on('line', exports.line = async line => {
 		process.exit();
 	} else if (/^clea[nr]$/i.test(line)) {
 		rl.handled = true;
+		process.stdout.write(String.fromCharCode(0x1B) + '[2J'); //Erase screen
 		console.log('\n'.repeat(process.stdout.rows * 2));
 		console.clear();
 		fs.truncate(LOG, () => {
@@ -242,11 +209,11 @@ const mid = exports.mid = fs.watch(HOME + '/middlewares', { recursive: true }, (
 watch = exports.watch = fs.watch(HOME, (type, file) => {
 	if (type == 'change' && file.endsWith('.js')) restart();
 }),
-
 reload = exports.reload = loadMiddlewares = exports.loadMiddlewares = async function loadMiddlewares() {
+	server.emit('reloading');
 	middlewares = [];
 	rl.removeAllListeners();
-	rl.comps = ['#', 'eval', 'reload', 'restart', 'quit', 'exit', 'clear', 'clean', 'uptime', 'cert', 'nocolors', 'colors'];
+	rl.comps = ['#', 'eval', 'reload', 'restart', 'quit', 'exit', 'clean', 'uptime', 'cert', 'nocolors', 'colors', 'close'];
 	rl.count = 1;
 	rl.on('line', exports.line);
 	fs.readdirSync(HOME + '/middlewares').flt().filter(mwar => mwar.endsWith('.js') && !mwar.startsWith('d-') && (typeof WARES === 'symbol' || WARES.includes(mwar.replace(/\.js$/, '')))).flt().forEach(mwar => {
@@ -286,8 +253,10 @@ reload = exports.reload = loadMiddlewares = exports.loadMiddlewares = async func
 		agent: false
 	}, ignore);
 	console.info(chalk`{grey Middlewares reloaded...\n${new Date}}`);
+	server.emit('reloaded');
 },
-restart = exports.restart = function restart() {
+restart = exports.restart = async function restart() {
+	server.emit('restarting');
 	console.info(chalk.whiteBright.dim.bold.underline('Server Restarting...') + '\n' + chalk.gray(new Date));
 	rl.close();
 	watch.close();
@@ -310,11 +279,8 @@ restart = exports.restart = function restart() {
 		stdio: 'inherit'
 	});
 	if (process.disconnect) process.exit();
-};
-
-loadMiddlewares();
-
-const server = exports.server = http.createServer({
+},
+server = exports.server = http.createServer({
 	key: fs.readFileSync('private.pem'),
 	cert: fs.readFileSync('cert.pem'),
 	ca: [fs.readFileSync('clientcert.pem')],
@@ -420,6 +386,59 @@ const server = exports.server = http.createServer({
 	fs.writeFile(HOME + '/private/down.txt', new Date(), ignore);
 	console.log(chalk`Server Closed.\n{gray.dim ${new Date}}`);
 });
+exports.sessions = {};
+loadMiddlewares();
+server.emit('restarted');
+
+const readStat = exports.readStat = fs.readStat = async function(file, cb) {
+	return new Promise((rsl, rjc) => {
+		fs.stat(file, async (err, stat) => {
+			if (err) {
+				rjc(err);
+			} else {
+				if (stat.isDirectory() && typeof cb == 'function') {
+					cb(await readDir(file), true, rsl);
+				} else if (stat.isDirectory()) {
+					rsl({
+						data: await readDir(file),
+						type: 'dir'
+					});
+				} else if (stat.isFile() && typeof cb == 'function') {
+					cb(await readFile(file), false, rsl);
+				} else if (stat.isFile()) {
+					rsl({
+						data: await readFile(file),
+						type: 'file'
+					});
+				} else {
+					rjc(stat);
+				}
+			}
+		});
+	});
+},
+readFile = exports.readFile = async function readFile(file) {
+	return new Promise((rsl, rjc) => {
+		fs.readFile(file, (err, data) => {
+			if (err) {
+				rjc(err);
+			} else {
+				rsl(data);
+			}
+		});
+	});
+},
+readDir = exports.readDir = async function readDir(dir) {
+	return new Promise((rsl, rjc) => {
+		fs.readdir(dir, (err, files) => {
+			if (err) {
+				rjc(err);
+			} else {
+				rsl(files);
+			}
+		});
+	});
+};
 
 //----- DANGEROUS
 process.removeAllListeners();
