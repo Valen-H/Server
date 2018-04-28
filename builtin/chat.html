@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Chatroom</title>
+		<meta charset=UTF-8>
+		<meta name=viewport content=width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no>
+		<script src=/JS/socket.io.js></script>
+		<script src=/JS/socket.js></script>
+		<link href=/CSS/Main.css rel=stylesheet />
+		<link href=/CSS/Style.css rel=stylesheet />
+		<script>
+			onload = function() {
+				try {
+					socket.chat = io('/chat', {
+						forceNew: true,
+						secure: true,
+						rejectUnauthorized: false,
+						reconnect: true
+					});
+					ar = document.querySelector('#area');
+					tx = document.querySelector('#text');
+					ar.add = function(dat, reg) {
+						var el = document.createElement('p');
+						if (reg) {
+							el.innerHTML = dat;
+						} else {
+							el.innerText = dat;
+						}
+						ar.appendChild(el);
+					};
+					socket.chat.on('message', function(dat, user) {
+						ar.add(user + ' : ' + dat);
+					});
+					socket.chat.on('connected', function(addr) {
+						ar.add('<i style=color:grey>' + addr + ' joined...<br/><small>' + (new Date()) + '</small></i>', true);
+					});
+					socket.chat.on('disconnected', function(addr) {
+						ar.add('<i style=color:grey>' + addr + ' left...<br/><small>' + (new Date()) + '</small></i>', true);
+					});
+				} catch(err) { }
+			};
+			
+			/*onerror = function(e) {
+				alert(e);
+			};*/
+			
+			window.text = text = function text(txt) {
+				
+			};
+			window.send = send = function send() {
+				socket.chat.send(tx.value);
+				tx.value = '';
+				tx.focus();
+				return false;
+			};
+		</script>
+	</head>
+	<body bgcolor=lightgrey class="flexc center fullscreen">
+		<div id=area class="fullpage scroll">
+			<p class=italic><small>Beginning of chat...</small></p>
+		</div><br/>
+		<hr/>
+		<div style=height:55%></div>
+		<textarea id=text class="noresize over center" oninput=text(event.target) style=padding:5% noresize autofocus></textarea>
+		<input type=submit onclick=send() class=over />
+		<div style=height:10%></div>
+	</body>
+</html>

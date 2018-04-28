@@ -62,6 +62,7 @@
 							dir.innerHTML = '<li>' + files.join('</li><li>') + '</li>';
 							dir.querySelectorAll('li').forEach(function(li) {
 								li.onclick = function(ev) {
+									li.style.background = 'lightgreen';
 									if (!/Back/i.test(ev.target.innerHTML)) {
 										direc += " + '/" + ev.target.innerHTML + "'";
 									} else {
